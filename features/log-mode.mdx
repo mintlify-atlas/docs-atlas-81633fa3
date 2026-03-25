@@ -1,0 +1,95 @@
+---
+title: "Log Mode"
+description: "Voice-triggered note-taking that saves timestamped entries to markdown files"
+---
+
+Log Mode turns Trueears into a voice-activated note-taking tool. Say a trigger phrase followed by anything you want to remember, and Trueears appends a timestamped entry to a markdown file on your machine — organized per app, automatically.
+
+## How It Works
+
+<Steps>
+  <Step title="Say a trigger phrase followed by your note">
+    Start your dictation with one of the configured trigger phrases:
+    - *"Log fix the authentication bug"*
+    - *"Remember to call John tomorrow"*
+    - *"Note to self review the PR before merging"*
+
+    The trigger phrase is detected from the transcription after Whisper processes your audio.
+  </Step>
+  <Step title="Trueears detects the trigger">
+    `LogModeService` scans the transcription for a matching trigger phrase using a longest-match-first strategy (so "Note to self" matches before "Note"). Everything after the trigger phrase becomes the log entry content.
+  </Step>
+  <Step title="Entry is saved to a markdown file">
+    The entry is appended to the log file mapped to the active app, with a timestamp:
+
+    ```markdown
+    - [2025-12-29 16:30] Fix the authentication bug
+    ```
+
+    If no file mapping exists for the current app yet, Trueears prompts you to set one (see First-Time Setup below).
+  </Step>
+  <Step title="Confirmation">
+    A success sound plays and the overlay closes. Nothing is pasted into the active app — the entry goes straight to the log file.
+  </Step>
+</Steps>
+
+## Default Trigger Phrases
+
+| Trigger Phrase | Example |
+|---------------|--------|
+| `Log` | *"Log fix the login button"* |
+| `Remember` | *"Remember to update the docs"* |
+| `Note to self` | *"Note to self check the API limits"* |
+
+All trigger phrases are case-insensitive. You can add, edit, or disable them in **Settings > Log Mode**.
+
+## Log File Format
+
+Entries are appended as markdown list items with timestamps:
+
+```markdown
+- [2025-12-29 14:30] Fix the authentication bug
+- [2025-12-29 15:45] Review PR #42 before merging
+- [2025-12-29 16:00] Call John about the project timeline
+```
+
+The timestamp format is `[YYYY-MM-DD HH:MM]` in local time. Each entry is a new line — the file grows indefinitely and is never overwritten, only appended.
+
+## First-Time Setup Per App
+
+Log Mode organizes notes by app. The first time you use a trigger phrase in a new app, Trueears prompts you to confirm the log file path:
+
+- **Default path**: `Documents/Trueears/<app-name>-log.md` (e.g., `Documents/Trueears/chrome-log.md`)
+- Click **Save** to use this path
+- Click **Skip** to copy the formatted entry to the clipboard instead (useful if you don't want file-based logging for that app)
+
+Once confirmed, all future log entries for that app go to the same file automatically.
+
+## Configuration
+
+Go to **Settings > Log Mode** to manage the feature:
+
+| Setting | Description |
+|---------|------------|
+| **Enable / Disable** | Master toggle for the entire feature |
+| **Default Log Directory** | Base folder for new log files. Default: `Documents/Trueears` |
+| **Trigger Phrases** | Add, edit, enable, or disable trigger phrases |
+| **App Mappings** | View and edit the app-to-file mapping for each app you've used Log Mode in |
+
+<Note>
+  If a log file write fails (e.g., the file is locked by another process), Trueears retries twice with a 500ms delay between attempts. If all retries fail, the formatted entry is copied to your clipboard as a fallback.
+</Note>
+
+## Tips
+
+<Tip>
+  Keep your trigger phrases distinct from words you use naturally in speech. Shorter phrases like "Log" activate quickly but may trigger accidentally. "Note to self" is less likely to appear organically mid-sentence.
+</Tip>
+
+<Tip>
+  Log files are plain markdown — you can open them in any editor, sync them with a cloud folder, or process them with any markdown-aware tool.
+</Tip>
+
+<Warning>
+  Log Mode requires LLM post-processing to be enabled if you want the note content to be cleaned up before saving. Without LLM post-processing, the raw Whisper transcription (including filler words) is written to the file.
+</Warning>

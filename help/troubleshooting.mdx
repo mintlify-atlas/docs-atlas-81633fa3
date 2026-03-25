@@ -1,0 +1,268 @@
+---
+title: 'Troubleshooting'
+description: 'Solutions to common issues with Trueears'
+---
+
+## Quick reference
+
+| Issue | Solution |
+|-------|----------|
+| LLM responding instead of formatting | Reset App Profiles to defaults |
+| Settings not saving | Clear store and restart |
+| Microphone not working | Check OS permissions |
+| Hotkey not responding | Check for conflicts with other apps |
+| No transcription after recording | Verify Groq API key and network |
+| "Default" profile always used | Check exe name match in App Profiles |
+| WebView2 not found | Run installer or download manually |
+| High memory usage | Restart app; expected &lt;50MB idle |
+
+---
+
+## LLM issues
+
+<AccordionGroup>
+  <Accordion title="LLM responding instead of formatting">
+    If the LLM generates conversational responses like "I'm doing great!" instead of formatting your dictated text:
+
+    <Steps>
+      <Step title="Open Settings">
+        Press `Ctrl+Shift+S` to open Settings.
+      </Step>
+      <Step title="Navigate to App Profiles">
+        Go to the **App Profiles** tab.
+      </Step>
+      <Step title="Reset to defaults">
+        Click **Reset to Defaults**. This reloads the base system prompt which includes "DO NOT respond" instructions.
+      </Step>
+    </Steps>
+
+    <Note>
+      This issue typically occurs when a custom system prompt has been modified and the formatting instruction was accidentally removed.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Formatting is inconsistent">
+    If transcribed text is formatted differently across recordings:
+
+    - Confirm **LLM Post-Processing** is enabled in Settings.
+    - Verify the active app profile matches your current application.
+    - If using a custom profile, review the system prompt — it may need adjustment to clarify the expected output format.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Recording issues
+
+<AccordionGroup>
+  <Accordion title="Microphone not detected">
+    <Steps>
+      <Step title="Check OS permissions">
+        On Windows, go to **Settings > Privacy > Microphone** and ensure Trueears has access. On macOS, check **System Preferences > Security & Privacy > Microphone**.
+      </Step>
+      <Step title="Verify microphone in other apps">
+        Confirm the microphone works in another application (e.g., a browser or voice recorder) to rule out a hardware issue.
+      </Step>
+      <Step title="Select a different input device">
+        Open Trueears Settings and try selecting a different microphone from the input device list.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Recording starts but no transcription appears">
+    <Steps>
+      <Step title="Check your Groq API key">
+        Open Settings and verify your Groq API key is entered correctly. You can validate the key at [console.groq.com](https://console.groq.com/keys).
+      </Step>
+      <Step title="Check network connectivity">
+        Ensure you have an active internet connection. Transcription requires a live connection to the Groq API.
+      </Step>
+      <Step title="Check console for API errors">
+        Press `F12` to open the developer console and look for any API error messages.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Hotkey not responding">
+    <Steps>
+      <Step title="Check for hotkey conflicts">
+        Ensure no other application is bound to `Ctrl+Shift+K`. Common conflicts include screen capture tools, password managers, and gaming overlays.
+      </Step>
+      <Step title="Confirm Trueears is running">
+        Check that the Trueears icon is visible in the system tray. If not, relaunch the application.
+      </Step>
+      <Step title="Restart Trueears">
+        Close and reopen Trueears to re-register the global hotkey.
+      </Step>
+    </Steps>
+
+    <Warning>
+      Some elevated processes (games running as administrator, UAC-elevated apps) can block global hotkeys. If the focused window is running with elevated privileges, Trueears may not be able to intercept the shortcut.
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Settings issues
+
+<AccordionGroup>
+  <Accordion title="Settings not persisting">
+    Settings are stored via Tauri's Store plugin. If your settings are not saved between sessions:
+
+    <Steps>
+      <Step title="Check the console for errors">
+        Press `F12` to open the developer console and look for storage-related errors.
+      </Step>
+      <Step title="Clear the store and restart">
+        Run the following in the browser console, then reload:
+
+        ```javascript
+        localStorage.clear();
+        location.reload();
+        ```
+      </Step>
+      <Step title="Verify plugin configuration">
+        Ensure `@tauri-apps/plugin-store` is properly configured in the project if you are running a development build.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="API key not working">
+    <Steps>
+      <Step title="Validate the key">
+        Go to [console.groq.com](https://console.groq.com/keys) and confirm the key is active and has the required permissions.
+      </Step>
+      <Step title="Check for trailing spaces">
+        When pasting an API key, trailing whitespace is sometimes included. Delete and re-enter the key manually if in doubt.
+      </Step>
+    </Steps>
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Window detection
+
+<AccordionGroup>
+  <Accordion title="Default profile is always used">
+    Active window detection uses the Windows Win32 API. Common causes:
+
+    - The active application does not have a matching entry in the App Profiles list.
+    - The executable name in your profile does not match the actual `.exe` name. Check the exact name in **Settings > App Profiles**.
+    - Running Trueears as administrator may interfere with detection of non-elevated windows.
+
+    **To add a custom profile:**
+
+    <Steps>
+      <Step title="Open App Profiles">
+        Go to **Settings > App Profiles** and click **Add Profile**.
+      </Step>
+      <Step title="Enter the executable name">
+        Enter the exact executable name, for example `notepad.exe` or `slack.exe`.
+      </Step>
+      <Step title="Configure formatting instructions">
+        Set context-specific system prompt instructions for that application and click **Save**.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Window detection not working on macOS or Linux">
+    <Info>
+      Window detection is currently **Windows-only**. It relies on Windows Win32 APIs (`GetForegroundWindow`, `GetWindowText`). macOS and Linux implementations are planned for a future release.
+    </Info>
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Build issues
+
+<AccordionGroup>
+  <Accordion title="WebView2 not found on Windows">
+    The Trueears installer includes an embedded WebView2 bootstrapper that should install it automatically.
+
+    If the error persists after running the installer, manually install WebView2:
+
+    <Steps>
+      <Step title="Download WebView2">
+        Go to the [Microsoft WebView2 download page](https://developer.microsoft.com/microsoft-edge/webview2/) and download the Evergreen Standalone Installer.
+      </Step>
+      <Step title="Install and restart">
+        Run the installer, then restart your machine and launch Trueears again.
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Build fails with Rust errors">
+    ```bash
+    # Update the Rust toolchain
+    rustup update stable
+
+    # Clean the build cache and rebuild
+    cd backend
+    cargo clean
+    cd ..
+    npm run build
+    ```
+  </Accordion>
+
+  <Accordion title="Missing Visual Studio Build Tools">
+    Rust on Windows requires the MSVC build tools. Install them from [Visual Studio Downloads](https://visualstudio.microsoft.com/downloads/):
+
+    - Select the **Desktop development with C++** workload.
+    - Ensure the **Windows SDK** component is included.
+
+    Restart your terminal after installation.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Performance
+
+<AccordionGroup>
+  <Accordion title="High memory usage">
+    Expected memory usage:
+    - **Idle**: less than 50 MB
+    - **During recording**: less than 150 MB
+
+    If usage is significantly higher:
+
+    1. Open the developer console (`F12`) and check for memory leak warnings.
+    2. Restart the application.
+    3. Confirm that audio buffers are being released after each recording session.
+  </Accordion>
+
+  <Accordion title="Slow transcription">
+    Transcription latency is usually caused by one of the following:
+
+    - **Network latency** to the Groq API — check your connection speed.
+    - **Large audio files** — try shorter recordings to reduce processing time.
+    - **Groq API degradation** — check [Groq's status page](https://status.groq.com) for any ongoing incidents.
+  </Accordion>
+
+  <Accordion title="Overlay flickering">
+    Flickering of the Trueears overlay window may be caused by display scaling or graphics driver issues:
+
+    - Set display scaling to **100%** in your OS display settings and test again.
+    - Update your graphics drivers to the latest version.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Reporting an issue
+
+When opening a bug report on GitHub, include the following debug information to help diagnose the problem:
+
+1. **Trueears version** — found in **Settings > About**
+2. **Operating system and version** — e.g., Windows 11 23H2
+3. **Steps to reproduce** — a minimal sequence of actions that triggers the issue
+4. **Console errors** — open the developer console with `F12` and copy any error output
+
+<Note>
+  Screenshots or screen recordings are also helpful for UI-related issues.
+</Note>
+
+Open an issue at [github.com/anomalyco/Trueears/issues](https://github.com/anomalyco/Trueears/issues).

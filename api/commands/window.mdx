@@ -1,0 +1,153 @@
+---
+title: "Window commands"
+description: "Commands for window detection, cursor position, and overlay control"
+---
+
+These commands provide OS-level window and cursor information that the frontend uses to position the overlay and identify the active application, as well as control the settings window.
+
+## TypeScript interfaces
+
+```typescript
+interface ActiveWindowInfo {
+  app_name: string;        // Executable filename, e.g. "Code.exe"
+  window_title: string;    // Window title bar text
+  executable_path: string; // Full path to the executable
+  url: string | null;      // Active browser URL (browser windows only)
+}
+
+interface CursorPosition {
+  x: number;  // Horizontal screen coordinate in physical pixels
+  y: number;  // Vertical screen coordinate in physical pixels
+}
+```
+
+<Note>
+  The `url` field is populated only for browser windows (Chrome, Edge, Firefox, Brave, Opera, Vivaldi, Arc). For non-browser apps it is always `null`. Trueears uses the URL to match browser-based App Profiles such as Gmail or Google Docs.
+</Note>
+
+---
+
+## `get_active_window_info`
+
+Retrieves information about the currently focused window at the moment the command is called.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const info = await invoke<ActiveWindowInfo | null>('get_active_window_info');
+
+if (info) {
+  console.log('App name:', info.app_name);
+  console.log('Window title:', info.window_title);
+  console.log('Path:', info.executable_path);
+  if (info.url) {
+    console.log('Browser URL:', info.url);
+  }
+}
+```
+
+### Returns
+
+`Promise<ActiveWindowInfo | null>`
+
+<ResponseField name="app_name" type="string">
+  The executable filename of the process that owns the window (e.g., `Code.exe`, `slack.exe`). This is the field matched against App Profile entries.
+</ResponseField>
+
+<ResponseField name="window_title" type="string">
+  The title bar text of the focused window.
+</ResponseField>
+
+<ResponseField name="executable_path" type="string">
+  The full absolute path to the application's executable file.
+</ResponseField>
+
+<ResponseField name="url" type="string | null">
+  The active URL for browser windows, read via Windows UI Automation. `null` for non-browser applications.
+</ResponseField>
+
+<Warning>
+  On **Windows**, active window detection uses Win32 `GetForegroundWindow` + `GetWindowText` + `QueryFullProcessImageNameW`. On **Linux (X11)**, it uses `xdotool getactivewindow`. On **Linux (Wayland)**, window detection is skipped and the command returns `null`. On **macOS**, a stub returns a placeholder object.
+</Warning>
+
+---
+
+## `get_cursor_position`
+
+Returns the current mouse cursor position in physical screen coordinates.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const pos = await invoke<CursorPosition>('get_cursor_position');
+console.log(`Cursor is at (${pos.x}, ${pos.y})`);
+```
+
+### Returns
+
+`Promise<CursorPosition>`
+
+<ResponseField name="x" type="number">
+  Horizontal position in physical pixels, measured from the left edge of the primary monitor.
+</ResponseField>
+
+<ResponseField name="y" type="number">
+  Vertical position in physical pixels, measured from the top edge of the primary monitor.
+</ResponseField>
+
+<Note>
+  On Linux, cursor position is read via `xdotool getmouselocation --shell`. On Hyprland/Wayland without xdotool, it falls back to `hyprctl cursorpos`. On macOS, this command returns an error.
+</Note>
+
+---
+
+## `set_ignore_mouse_events`
+
+Configures whether the main overlay window should pass mouse events through to windows beneath it (click-through mode).
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+// Make overlay click-through while idle
+await invoke('set_ignore_mouse_events', { ignore: true });
+
+// Make overlay interactive (e.g., when showing recording UI)
+await invoke('set_ignore_mouse_events', { ignore: false });
+```
+
+### Parameters
+
+<ParamField path="ignore" type="boolean" required>
+  When `true`, mouse events pass through the overlay to the window below it. When `false`, the overlay captures mouse input normally.
+</ParamField>
+
+### Returns
+
+`Promise<void>`
+
+<Note>
+  On Linux, enabling click-through (`ignore: true`) is silently skipped to avoid a GTK crash that can occur before the window surface is fully initialized. Disabling click-through (`ignore: false`) works normally on all platforms.
+</Note>
+
+---
+
+## `open_settings_window`
+
+Opens the Trueears settings window. If the settings window is already open, calling this command closes it instead (toggle behavior).
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+await invoke('open_settings_window');
+```
+
+### Returns
+
+`Promise<void>`
+
+### Behavior
+
+- If no settings window exists, a new one is created (1200×800 minimum, resizable, centered, maximized on open, decorated).
+- If a settings window is already open, it is **closed**.
+- The new window starts hidden; a failsafe timer automatically shows it after 2000ms if the frontend has not shown it sooner.
+- The settings window is always interactive — `set_ignore_cursor_events(false)` is called automatically on creation.

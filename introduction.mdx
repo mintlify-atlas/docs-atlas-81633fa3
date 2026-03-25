@@ -1,0 +1,91 @@
+---
+title: "Introduction"
+description: "Trueears is a context-aware AI voice dictation app for Windows. It detects your active application and formats your speech intelligently — casual for Slack, technical for VS Code, professional for Outlook."
+---
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running in under 5 minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Download and install Trueears on Windows
+  </Card>
+  <Card title="App Profiles" icon="layer-group" href="/features/app-profiles">
+    Configure per-app formatting and language
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the Tauri command API
+  </Card>
+</CardGroup>
+
+## What is Trueears?
+
+Trueears is a minimalist, context-aware AI voice dictation application built with [Tauri](https://tauri.app) and Rust. It runs as a lightweight background process (&lt;15MB RAM) and activates with a global hotkey.
+
+When you press `Ctrl+Shift+K`, Trueears:
+
+1. Detects your active application (VS Code, Slack, Outlook, etc.)
+2. Records your speech via the Web Audio API
+3. Transcribes it using [Groq's Whisper API](https://console.groq.com)
+4. Optionally formats the text with an LLM based on the active app context
+5. Pastes the result directly into your focused text field
+
+No switching windows. No copy-paste. Just speak and keep working.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Context-aware formatting" icon="wand-magic-sparkles">
+    Detects your active app and applies app-specific formatting rules automatically
+  </Card>
+  <Card title="App Profiles" icon="layer-group">
+    Pre-configured profiles for VS Code, Slack, Outlook, Notion, and more
+  </Card>
+  <Card title="Select-to-Transform" icon="arrows-rotate">
+    Select text, speak a transformation command, and watch it rewrite in place
+  </Card>
+  <Card title="Log Mode" icon="notebook">
+    Voice-triggered note-taking that saves timestamped entries to markdown files
+  </Card>
+  <Card title="Local-first" icon="shield-halved">
+    Audio is processed in-memory and never stored on disk or any third-party server
+  </Card>
+  <Card title="Lightweight" icon="feather">
+    ~15MB bundle built with Rust/Tauri — 10x smaller than Electron alternatives
+  </Card>
+</CardGroup>
+
+## How it works
+
+```
+User presses Ctrl+Shift+K
+        │
+        ▼
+  [Rust backend] Detects active window and selected text
+        │
+        ▼
+  [Frontend] Shows overlay, starts audio recording
+        │
+        ▼
+  [Groq Whisper API] Speech → raw text
+        │
+        ▼
+  [Groq Chat API] Formats text using app-specific system prompt
+        │
+        ▼
+  [Rust backend] Writes to clipboard, simulates Ctrl+V paste
+```
+
+## Tech stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | React 19, TypeScript 5.8, TailwindCSS 4, Vite 6 |
+| Backend | Tauri 2.x (Rust) |
+| Speech-to-text | Groq Whisper (`whisper-large-v3-turbo`) |
+| LLM formatting | Groq Chat / OpenRouter models |
+| Platform | Windows 10/11 (Linux in progress) |
+
+## License
+
+Trueears is open source under the [GNU AGPL v3.0](https://github.com/devv-shayan/Trueears/blob/main/LICENSE) license.

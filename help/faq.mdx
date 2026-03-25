@@ -1,0 +1,171 @@
+---
+title: 'FAQ'
+description: 'Frequently asked questions about Trueears'
+---
+
+## General
+
+<AccordionGroup>
+  <Accordion title="What is Trueears?">
+    Trueears is a minimalist, context-aware AI voice dictation application. It transforms speech into intelligently formatted text based on the active application — for example, producing casual Slack messages, structured code comments in VS Code, or formal email copy in Outlook.
+  </Accordion>
+
+  <Accordion title="How much does it cost?">
+    Trueears itself is free and open source. You only pay for API usage:
+
+    - **Groq API** (transcription): free tier available with generous limits
+    - **LLM post-processing** (formatting): uses Groq's free chat models
+
+    No subscription or license fee is required to run Trueears.
+  </Accordion>
+
+  <Accordion title="Which platforms are supported?">
+    | Platform | Status |
+    |----------|--------|
+    | Windows 10/11 | Fully supported |
+    | macOS | Coming soon |
+    | Linux | Coming soon |
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Privacy & security
+
+<AccordionGroup>
+  <Accordion title="Does Trueears store my audio?">
+    No. Audio is:
+
+    1. Recorded locally in memory
+    2. Sent to Groq for transcription
+    3. Immediately discarded after transcription completes
+
+    Nothing is persisted to disk or to any server you do not control.
+  </Accordion>
+
+  <Accordion title="Where are my API keys stored?">
+    API keys (Groq, OpenRouter) are stored in Tauri's Store plugin — a `settings.json` file in the app data directory. Authentication tokens from Google OAuth are stored in a separate `auth.json` file in the same directory.
+
+    Keys are never stored in `localStorage` or sent to any server other than the APIs they authenticate with.
+  </Accordion>
+
+  <Accordion title="Is my voice data sent anywhere besides Groq?">
+    No. Audio is only sent to Groq's Whisper API for transcription. If you enable LLM post-processing, the transcribed *text* (not the audio) is sent to Groq's chat API for formatting. No other third-party services receive your data.
+  </Accordion>
+
+  <Accordion title="Can I use Trueears offline?">
+    Not currently. Transcription requires a live internet connection to the Groq API. Local and offline model support is planned for a future release.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Features
+
+<AccordionGroup>
+  <Accordion title="What's the difference between recording modes?">
+    | Mode | Behavior | Best for |
+    |------|----------|----------|
+    | **Auto** (default) | Quick tap = Toggle, Hold = Push-to-Talk | Flexibility |
+    | **Toggle** | Press to start, press again to stop | Long dictation |
+    | **Push-to-Talk** | Hold to record, release to stop | Quick commands |
+
+    Configure the mode in **Settings > Preferences**.
+  </Accordion>
+
+  <Accordion title="What is Select-to-Transform?">
+    Select-to-Transform lets you rewrite existing text using a voice instruction:
+
+    <Steps>
+      <Step title="Select text">Highlight any text in any application.</Step>
+      <Step title="Activate recording">Press `Ctrl+Shift+K`.</Step>
+      <Step title="Speak your instruction">Say a transformation, for example: "make it professional", "translate to Spanish", or "convert to bullet points".</Step>
+      <Step title="Stop recording">Press `Ctrl+Shift+K` again. The selected text is replaced with the transformed version.</Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="What is Log Mode?">
+    Log Mode saves voice notes as timestamped entries in app-specific markdown files.
+
+    Speak a trigger phrase followed by your note:
+
+    | Trigger phrase | Example |
+    |----------------|---------|
+    | Log | "Log fix the login button" |
+    | Remember | "Remember to update the docs" |
+    | Note to self | "Note to self check the API limits" |
+
+    Entries are appended in the following format:
+
+    ```markdown
+    - [2025-12-29 14:30] Fix the authentication bug
+    - [2025-12-29 15:45] Review PR #42 before merging
+    ```
+
+    Configure Log Mode in **Settings > Log Mode**.
+  </Accordion>
+
+  <Accordion title="Can I customize app profiles?">
+    Yes. Go to **Settings > App Profiles** to:
+
+    - Add profiles for new applications
+    - Modify formatting instructions per app
+    - Set context-specific system prompts
+    - Override the transcription language per app
+  </Accordion>
+
+  <Accordion title="Can I use different languages for different apps?">
+    Yes. Each App Profile supports a **Language Override**:
+
+    <Steps>
+      <Step title="Open App Profiles">Go to **Settings > App Profiles**.</Step>
+      <Step title="Create or edit a profile">Select an existing profile or click **Add Profile**.</Step>
+      <Step title="Set the language">Under **Language Override**, click **Change**, select your preferred language, and click **Save**.</Step>
+    </Steps>
+
+    The per-profile language takes priority over the global transcription language setting. This is useful for multilingual workflows — for example, Spanish for WhatsApp and English for VS Code.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Technical
+
+<AccordionGroup>
+  <Accordion title="Why Tauri instead of Electron?">
+    | | Tauri | Electron |
+    |-|-------|----------|
+    | Bundle size | ~15 MB | ~150 MB |
+    | Memory usage | Lower | Higher |
+    | Backend | Native Rust | Node.js |
+    | WebView | System WebView | Bundled Chromium |
+
+    Tauri produces a roughly 10x smaller bundle and lower memory overhead by using the operating system's built-in WebView rather than bundling a full browser engine.
+  </Accordion>
+
+  <Accordion title="What LLM models are supported?">
+    Trueears currently supports OpenRouter-hosted models for LLM post-processing:
+
+    - `openai/gpt-oss-120b` (recommended)
+    - `openai/gpt-oss-20b`
+
+    Custom endpoint support is planned for a future release.
+  </Accordion>
+
+  <Accordion title="What Whisper model is used for transcription?">
+    Trueears uses `whisper-large-v3-turbo` via the Groq API by default. This model provides a good balance of transcription speed and accuracy.
+
+    You can change the model in **Settings > Transcription**.
+  </Accordion>
+
+  <Accordion title="How do global hotkeys work?">
+    Trueears registers system-wide hotkeys using Tauri's `global-shortcut` plugin:
+
+    | Action | Shortcut |
+    |--------|----------|
+    | Start / stop recording | `Ctrl+Shift+K` |
+    | Open settings | `Ctrl+Shift+S` |
+
+    These shortcuts are active even when Trueears is not the focused window. Note that elevated processes (applications running as administrator) may block global hotkeys from being received by Trueears.
+  </Accordion>
+</AccordionGroup>

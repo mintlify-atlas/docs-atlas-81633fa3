@@ -1,0 +1,156 @@
+---
+title: "Architecture"
+description: "System design, component overview, and data flow for Trueears"
+---
+
+## System overview
+
+Trueears is a Tauri v2 desktop application. It captures audio via a global shortcut, transcribes it through the Groq API, optionally post-processes the text with an LLM, and pastes the result into the active application.
+
+```
+┌──────────────────────────────────────────────────────┐
+│                   Tauri v2 Shell                     │
+│                                                      │
+│  ┌──────────────────┐    ┌────────────────────────┐  │
+│  │  React Frontend  │◄──►│    Rust Backend         │  │
+│  │  (WebView)       │IPC │  (Tauri Commands)       │  │
+│  │                  │    │                          │  │
+│  │  - Overlay UI    │    │  - Global shortcuts      │  │
+│  │  - Settings UI   │    │  - Window detection      │  │
+│  │  - Audio capture │    │  - Clipboard/paste       │  │
+│  │  - Groq API calls│    │  - Installed apps cache  │  │
+│  │  - App profiles  │    │  - Auth (OAuth/file)     │  │
+│  └──────────────────┘    └────────────────────────┘  │
+│                                                      │
+│           ┌──────────────────────┐                   │
+│           │  Tauri Plugins       │                   │
+│           │  - global-shortcut   │                   │
+│           │  - store (settings)  │                   │
+│           │  - shell             │                   │
+│           │  - process           │                   │
+│           │  - log               │                   │
+│           └──────────────────────┘                   │
+└──────────────────────────────────────────────────────┘
+         │                          │
+         ▼                          ▼
+  ┌──────────────┐         ┌───────────────┐
+  │  Groq API    │         │  OS Platform  │
+  │  - Whisper   │         │  - Win32 APIs │
+  │  - Chat LLM  │         │  - X11/Wayland│
+  └──────────────┘         └───────────────┘
+```
+
+## Two-window architecture
+
+The app manages exactly two windows:
+
+| Window | Behavior |
+|---|---|
+| **Main overlay** | Transparent, always-on-top, spans all monitors. Shows the recording indicator at the cursor position. Click-through when inactive. |
+| **Settings window** | Standard decorated window, created on demand for configuration, onboarding, and app profile management. |
+
+## Frontend structure
+
+The frontend is built with React 19, TypeScript 5.8+, TailwindCSS 4, and Vite 6.
+
+| Path (`frontend/src/`) | Purpose |
+|---|---|
+| `components/` | UI components — overlay, settings panels, onboarding wizard, audio visualizer |
+| `controllers/` | `dictationController.ts` — orchestrates the record → transcribe → format → paste pipeline |
+| `services/` | API clients — `groqService.ts` (Whisper STT), `groqChatService.ts` (LLM formatting), `appProfileService.ts`, `authService.ts`, `paymentService.ts` |
+| `hooks/` | React hooks for shared state and side effects |
+| `types/` | TypeScript type definitions |
+| `utils/` | Helpers (Tauri API wrapper, sound playback, etc.) |
+| `data/` | Static data (app profile defaults, etc.) |
+
+<Note>
+Audio is captured in the browser via the Web Audio API / MediaRecorder inside the WebView. The resulting blob is sent directly to the Groq API from the frontend — it does not pass through the Rust backend.
+</Note>
+
+## Backend modules
+
+The Rust backend lives in `backend/src/` and handles OS integration only — no audio or Groq network calls.
+
+| File | Responsibility |
+|---|---|
+| `lib.rs` | App setup, Tauri command registration, plugin initialization, env loading |
+| `shortcuts.rs` | Global shortcut registration (`Ctrl+Shift+K` for recording, `Ctrl+Shift+S` for settings, `Escape` to cancel) |
+| `window.rs` | Active window detection, cursor position (`Win32 GetCursorPos` / `xdotool` on X11) |
+| `automation.rs` | Clipboard write + simulated paste keystroke via `enigo` and `arboard` crates |
+| `installed_apps.rs` | Installed application discovery and caching (delegates to `installed_apps/windows_impl.rs` on Windows) |
+| `auth.rs` | Google OAuth flow, token storage via `auth.json` file in app data directory |
+| `log_mode.rs` | File-based logging for dictation output |
+| `linux_portal_shortcuts.rs` | Wayland-specific shortcut registration via XDG Desktop Portal |
+
+## Key Tauri plugins
+
+| Plugin | Purpose |
+|---|---|
+| `global-shortcut` | Register system-wide hotkeys |
+| `store` | Persist settings to disk (replaces localStorage) |
+| `shell` | Spawn child processes |
+| `process` | App exit and restart control |
+
+## Data flow
+
+```
+User presses Ctrl+Shift+K
+        │
+        ▼
+  [Rust] shortcuts.rs
+    ├── get_active_window_info()   → ActiveWindowInfo
+    ├── copy_selected_text()       → Option<String>
+    └── emit("shortcut-pressed")   → frontend
+        │
+        ▼
+  [Frontend] RecorderOverlay
+    ├── Show overlay at cursor
+    ├── Start MediaRecorder
+    └── Wait for stop trigger
+        │
+        ▼
+  [Frontend] groqService.ts
+    └── POST audio to Groq Whisper API → raw text
+        │
+        ▼
+  [Frontend] dictationController.ts
+    ├── Match app profile
+    ├── Build system prompt
+    └── groqChatService.ts → Groq Chat API → formatted text
+        │
+        ▼
+  [Frontend] invoke("transcription_complete", { text })
+        │
+        ▼
+  [Rust] automation.rs
+    ├── Hide overlay window
+    ├── Write text to clipboard (arboard)
+    └── Simulate Ctrl+V paste (enigo)
+```
+
+## Platform differences
+
+### Windows
+
+- Active window detection via Win32 `GetForegroundWindow` + `GetWindowText`
+- Cursor position via Win32 `GetCursorPos`
+- Installed app discovery scans Start Menu `.lnk` files and Registry uninstall keys
+- Global shortcuts via standard Tauri shortcut backend
+- WebView engine: Chromium (via WebView2)
+
+### Linux
+
+- Active window detection via `xdotool` (X11) or XDG Portal (Wayland)
+- Cursor position via `xdotool getmouselocation`
+- Global shortcuts use XDG Desktop Portal on Wayland, falling back to the standard Tauri backend on X11
+- Wayland overlay uses a smaller centered window with `set_focusable(false)` to avoid stealing focus
+- WebView engine: WebKitGTK — requires explicit media stream permission grants
+- `dev-linux.sh` provides a sanitized environment to avoid snap/flatpak path pollution
+
+## External dependencies
+
+| Service | Role |
+|---|---|
+| **Groq Whisper** (`whisper-large-v3-turbo`) | Speech-to-text transcription |
+| **Groq Chat LLM** (configurable model) | Context-aware text formatting |
+| **OS platform APIs** | Win32 (Windows), xdotool / XDG Portal (Linux) |

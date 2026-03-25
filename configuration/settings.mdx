@@ -1,0 +1,110 @@
+---
+title: "Settings"
+description: "Configure Trueears to match your workflow"
+---
+
+Trueears stores all settings automatically as you change them — there is no save button. Open the settings window at any time with `Ctrl+Shift+S` (Windows/Linux) or `Cmd+Shift+S` (macOS), or right-click the system tray icon and choose **Settings**.
+
+<Note>
+  Application settings (including your API keys) are stored via Tauri's Store plugin in a `settings.json` file in the app data directory. They are never stored in `localStorage`. Authentication tokens from Google OAuth are stored separately in `auth.json` in the same directory.
+</Note>
+
+## Transcription
+
+The **Transcription** tab controls how your voice is converted to text.
+
+| Setting | Description | Default |
+|---------|-------------|--------|
+| **Groq API Key** | Your API key from [console.groq.com](https://console.groq.com/keys) | — |
+| **Whisper Model** | The Groq-hosted Whisper model used for speech-to-text | `whisper-large-v3-turbo` |
+
+The default model `whisper-large-v3-turbo` provides the best balance of speed and accuracy. A Groq account is free and includes a generous API quota.
+
+<Steps>
+  <Step title="Get a Groq API key">
+    Visit [console.groq.com/keys](https://console.groq.com/keys) and create a new API key.
+  </Step>
+  <Step title="Open Settings">
+    Press `Ctrl+Shift+S` (or `Cmd+Shift+S` on macOS) to open the settings window.
+  </Step>
+  <Step title="Enter your key">
+    Go to the **Transcription** tab, paste your Groq API key into the field, and press Enter. The key is saved automatically via Tauri's Store plugin.
+  </Step>
+</Steps>
+
+## LLM Post-Processing
+
+Optional GPT-powered formatting that rewrites your transcription to match the tone and style of your active application.
+
+| Setting | Description | Default |
+|---------|-------------|--------|
+| **Enable LLM formatting** | Master toggle for post-processing | Off |
+| **Model** | OpenRouter-hosted model used for formatting | `openai/gpt-oss-120b` |
+
+### Available models
+
+| Model | Notes |
+|-------|-------|
+| `openai/gpt-oss-120b` | Recommended — best formatting quality |
+| `openai/gpt-oss-20b` | Faster, lower cost |
+
+Models are accessed via [OpenRouter](https://openrouter.ai/). An OpenRouter API key is required when LLM post-processing is enabled.
+
+<Note>
+  LLM post-processing sends transcribed **text** (not audio) to the model. Audio is only ever sent to Groq's Whisper API.
+</Note>
+
+## Preferences
+
+The **Preferences** tab contains general behavior settings.
+
+| Setting | Description | Options |
+|---------|-------------|--------|
+| **Recording Mode** | Controls how `Ctrl+Shift+K` starts and stops recording | Auto, Toggle, Push-to-Talk |
+
+See [Recording modes](/configuration/recording-modes) for a full comparison of each option.
+
+## App Profiles
+
+App Profiles tell Trueears how to format text for a specific application. Trueears detects your active window and automatically applies the matching profile.
+
+**Pre-configured profiles:**
+
+| Application | Formatting style |
+|-------------|----------------|
+| VS Code / Cursor | Technical docs, `@file` mentions |
+| Slack / Discord | Casual chat messages |
+| Outlook | Professional email format |
+| Notion / OneNote | Structured notes with bullets |
+| Word | Formal document content |
+
+**Per-profile settings:**
+
+- **Custom system prompt** — Override the default formatting instructions for this app.
+- **Language override** — Use a specific transcription language when recording in this app (e.g., Spanish for WhatsApp, English for VS Code).
+
+To manage profiles, go to **Settings > App Profiles**. You can add new profiles, edit existing ones, or reset a profile to its default prompt.
+
+## Log Mode
+
+Log Mode saves voice notes to timestamped markdown files, organized by application.
+
+| Setting | Description | Default |
+|---------|-------------|--------|
+| **Enable Log Mode** | Master toggle for the feature | Off |
+| **Default log directory** | Base folder where log files are created | `Documents/Trueears` |
+| **Trigger phrases** | Phrases that activate logging (e.g., "Log", "Remember") | Log, Remember, Note to self |
+| **App mappings** | Maps each application to its log file path | Auto-configured on first use |
+
+When you say a trigger phrase followed by your note, Trueears appends an entry to the app-specific log file:
+
+```markdown
+- [2025-12-29 14:30] Fix the authentication bug
+- [2025-12-29 15:45] Review PR #42 before merging
+```
+
+On first use in a new app, Trueears prompts you to confirm or change the log file path.
+
+## About
+
+The **About** tab shows version information, license details, and links to documentation and release notes.

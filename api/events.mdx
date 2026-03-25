@@ -1,0 +1,216 @@
+---
+title: "Events"
+description: "Backend events that the frontend can listen to using Tauri's event system"
+---
+
+The Rust backend emits events to windows using `app.emit(...)` or `window.emit(...)`. The frontend subscribes with `listen` from `@tauri-apps/api/event`.
+
+## Listening to events
+
+```typescript
+import { listen } from '@tauri-apps/api/event';
+
+// listen() returns a Promise that resolves to an unlisten function
+const unlisten = await listen('shortcut-pressed', (event) => {
+  console.log('Shortcut pressed', event.payload);
+});
+
+// Always call unlisten when the component unmounts
+unlisten();
+```
+
+<Note>
+  Always store the `unlisten` function returned by `listen()` and call it on component unmount or when the listener is no longer needed. Failing to do so will cause memory leaks and duplicate event handlers.
+</Note>
+
+## Available events
+
+### `shortcut-pressed`
+
+Triggered when the user presses the global recording shortcut (**Ctrl+Shift+K** on Windows/Linux, **Cmd+Shift+K** on macOS). The payload includes the active window information and any pre-selected text captured at the moment the shortcut was pressed.
+
+**Payload:**
+
+```typescript
+interface ShortcutPressedPayload {
+  window_info: ActiveWindowInfo | null; // Active window at hotkey press time
+  selected_text: string | null;         // Pre-selected text (for Select-to-Transform)
+}
+```
+
+```typescript
+import { listen } from '@tauri-apps/api/event';
+
+const unlisten = await listen<ShortcutPressedPayload>('shortcut-pressed', (event) => {
+  const { window_info, selected_text } = event.payload;
+  // Start recording, using window_info to choose app profile
+  // and selected_text for Select-to-Transform if present
+  startRecording(window_info, selected_text);
+});
+```
+
+---
+
+### `shortcut-released`
+
+Triggered when the user releases the global recording shortcut key. Used in **Push-to-Talk** mode to stop recording automatically on key release.
+
+**Payload:** `null`
+
+```typescript
+import { listen } from '@tauri-apps/api/event';
+
+const unlisten = await listen('shortcut-released', () => {
+  // Stop recording if in Push-to-Talk mode
+  if (recordingMode === 'push-to-talk') {
+    stopRecording();
+  }
+});
+```
+
+---
+
+### `shortcut-cancelled`
+
+Triggered when the user presses **Escape** while the overlay is visible (and the Escape shortcut is registered). The frontend uses this to abort the current recording and discard audio.
+
+**Payload:** `null`
+
+```typescript
+import { listen } from '@tauri-apps/api/event';
+
+const unlisten = await listen('shortcut-cancelled', () => {
+  // Abort recording and discard audio
+  cancelRecording();
+});
+```
+
+<Note>
+  The Escape shortcut is only registered while the overlay is visible. Call `register_escape_shortcut` when recording starts and `unregister_escape_shortcut` when it ends.
+</Note>
+
+---
+
+### `settings-changed`
+
+Emitted after a successful call to [`set_store_value`](/api/commands/settings). All open windows receive this event so they can re-read any settings they depend on.
+
+**Payload:** `null`
+
+```typescript
+import { listen } from '@tauri-apps/api/event';
+
+const unlisten = await listen('settings-changed', () => {
+  // Re-load settings from the store
+  reloadSettings();
+});
+```
+
+---
+
+### `onboarding-trigger-state`
+
+Emitted after a call to `set_onboarding_trigger_active`. When `true`, the normal `shortcut-pressed` handler should be suppressed so the hotkey triggers the onboarding step instead of dictation.
+
+**Payload:** `boolean`
+
+```typescript
+import { listen } from '@tauri-apps/api/event';
+
+const unlisten = await listen<boolean>('onboarding-trigger-state', (event) => {
+  const isOnboardingActive = event.payload;
+  setOnboardingTriggerActive(isOnboardingActive);
+});
+```
+
+---
+
+### `onboarding-trigger`
+
+Emitted to the main window when the recording shortcut is pressed while onboarding trigger mode is active (i.e., `ONBOARDING_TRIGGER_ACTIVE` is `true`). Used by the onboarding flow to detect that the user has pressed the hotkey as instructed.
+
+**Payload:** `null`
+
+```typescript
+import { listen } from '@tauri-apps/api/event';
+
+const unlisten = await listen('onboarding-trigger', () => {
+  // User pressed the hotkey during onboarding — advance to next step
+  advanceOnboardingStep();
+});
+```
+
+---
+
+### `auth-success`
+
+Emitted after a successful Google OAuth login. Carries the authenticated user's profile.
+
+**Payload:** `UserInfo`
+
+```typescript
+import { listen } from '@tauri-apps/api/event';
+
+const unlisten = await listen<UserInfo>('auth-success', (event) => {
+  const user = event.payload;
+  showWelcomeBanner(user.name ?? user.email);
+});
+```
+
+---
+
+### `auth-error`
+
+Emitted when the Google OAuth flow fails (e.g., the user cancels in the browser, or the token exchange fails).
+
+**Payload:** `string` (error message)
+
+```typescript
+import { listen } from '@tauri-apps/api/event';
+
+const unlisten = await listen<string>('auth-error', (event) => {
+  showError(`Login failed: ${event.payload}`);
+});
+```
+
+---
+
+### `show-warning`
+
+Emitted by `transcription_complete` when the automatic paste cannot complete (e.g., on a Wayland session where `enigo`-based key injection is blocked). The payload is a human-readable message to display to the user.
+
+**Payload:** `string` (warning message)
+
+```typescript
+import { listen } from '@tauri-apps/api/event';
+
+const unlisten = await listen<string>('show-warning', (event) => {
+  // e.g., "If the text did not appear automatically, it was copied to your clipboard. Press Ctrl+V..."
+  displayWarningToast(event.payload);
+});
+```
+
+---
+
+## React cleanup pattern
+
+In a React component, set up listeners in a `useEffect` and return the unlisten function as the cleanup:
+
+```typescript
+import { useEffect } from 'react';
+import { listen } from '@tauri-apps/api/event';
+
+useEffect(() => {
+  let unlisten: (() => void) | undefined;
+
+  listen<ShortcutPressedPayload>('shortcut-pressed', (event) => {
+    startRecording(event.payload.window_info, event.payload.selected_text);
+  }).then((fn) => {
+    unlisten = fn;
+  });
+
+  return () => {
+    unlisten?.();
+  };
+}, []);
+```

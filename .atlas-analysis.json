@@ -1,0 +1,122 @@
+{
+  "projectType": "saas",
+  "projectName": "Trueears",
+  "projectDescription": "A context-aware AI voice dictation desktop app built with Tauri and Rust that detects your active application and intelligently formats transcribed speech accordingly.",
+  "theme": "palm",
+  "primaryColor": "#515151",
+  "lightColor": "#2c2c2c",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/dictation",
+              "features/app-profiles",
+              "features/select-to-transform",
+              "features/log-mode"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/settings",
+              "configuration/keyboard-shortcuts",
+              "configuration/recording-modes"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/setup",
+              "development/architecture",
+              "development/building",
+              "development/contributing"
+            ]
+          },
+          {
+            "group": "Help",
+            "pages": [
+              "help/troubleshooting",
+              "help/faq"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/events"
+            ]
+          },
+          {
+            "group": "Commands",
+            "pages": [
+              "api/commands/settings",
+              "api/commands/window",
+              "api/commands/dictation",
+              "api/commands/shortcuts",
+              "api/commands/app-discovery",
+              "api/commands/auth",
+              "api/commands/log-mode"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Context-aware formatting based on active application (VS Code, Slack, Outlook, etc.)",
+    "Global hotkey recording with Auto, Toggle, and Push-to-Talk modes (Ctrl+Shift+K)",
+    "Select-to-Transform: select text, speak a transformation, auto-replace",
+    "Groq Whisper speech-to-text with optional LLM post-processing",
+    "App Profiles with per-app language overrides for multilingual workflows",
+    "Log Mode: voice-triggered markdown note-taking with timestamps",
+    "Lightweight ~15MB bundle using Rust/Tauri instead of Electron",
+    "Local-first architecture: audio processed in-memory, never stored on disk",
+    "Google OAuth authentication with OS keyring secure credential storage",
+    "Auto-paste transcribed text into the active application via clipboard simulation"
+  ],
+  "publicApiSurface": [
+    "get_store_value(key: string) -> string | null",
+    "set_store_value(key: string, value: string) -> void",
+    "get_active_window_info() -> ActiveWindowInfo | null",
+    "get_cursor_position() -> CursorPosition",
+    "set_ignore_mouse_events(ignore: boolean) -> void",
+    "open_settings_window() -> void",
+    "transcription_complete(text: string) -> void",
+    "copy_selected_text() -> string | null",
+    "register_escape_shortcut() -> void",
+    "unregister_escape_shortcut() -> void",
+    "search_installed_apps(query: string) -> InstalledApp[]",
+    "get_installed_popular_apps() -> InstalledApp[]",
+    "start_google_login() -> void",
+    "get_auth_state() -> AuthState",
+    "get_user_info() -> UserInfo | null",
+    "logout() -> void",
+    "append_to_file(path: string, content: string) -> void",
+    "validate_log_path(path: string) -> PathValidation",
+    "get_default_log_directory() -> string",
+    "open_log_file(path: string) -> void",
+    "set_onboarding_trigger_active(active: boolean) -> void",
+    "Event: toggle-recording",
+    "Event: cancel-recording",
+    "Event: settings-changed",
+    "Event: onboarding-trigger-state"
+  ]
+}

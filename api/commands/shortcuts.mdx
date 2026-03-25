@@ -1,0 +1,113 @@
+---
+title: "Shortcut commands"
+description: "Commands for managing the Escape key global shortcut during recording"
+---
+
+Trueears registers **Ctrl+Shift+K** permanently at startup for toggling recording. The **Escape** key shortcut is managed dynamically: it is registered only while a recording session is active and unregistered when the session ends, so it does not interfere with Escape usage in other applications.
+
+<Note>
+  The Escape shortcut is intentionally **not** registered at application startup. It is registered when the overlay becomes visible and unregistered when it is hidden. On Linux Wayland sessions, global Escape registration is skipped entirely.
+</Note>
+
+---
+
+## `register_escape_shortcut`
+
+Registers **Escape** as a global shortcut. When pressed while the overlay is visible, the backend emits a [`shortcut-cancelled`](/api/events#shortcut-cancelled) event to the main window.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+await invoke('register_escape_shortcut');
+```
+
+### Returns
+
+`Promise<void>`
+
+### When to call
+
+Call this command when the recording overlay becomes visible — that is, after the `shortcut-pressed` event is received and the frontend has started the `MediaRecorder`.
+
+---
+
+## `unregister_escape_shortcut`
+
+Unregisters the **Escape** global shortcut, returning Escape key behavior to the operating system and other applications.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+await invoke('unregister_escape_shortcut');
+```
+
+### Returns
+
+`Promise<void>`
+
+### When to call
+
+Call this command whenever a recording session ends — whether the session completed normally, was cancelled via Escape, or was stopped by pressing the hotkey again.
+
+---
+
+## Recording lifecycle with shortcuts
+
+The following illustrates the complete recording flow including shortcut management. Note that the recording shortcut emits `shortcut-pressed` (with window info and selected text), and Escape emits `shortcut-cancelled`.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+interface ShortcutPressedPayload {
+  window_info: ActiveWindowInfo | null;
+  selected_text: string | null;
+}
+
+let mediaRecorder: MediaRecorder | null = null;
+
+// 1. Listen for the global hotkey — carries window context
+const unlistenPressed = await listen<ShortcutPressedPayload>('shortcut-pressed', async (event) => {
+  if (mediaRecorder?.state === 'recording') {
+    // Stop an in-progress recording
+    mediaRecorder.stop();
+  } else {
+    // Start a new recording session with context
+    await startRecording(event.payload.window_info, event.payload.selected_text);
+  }
+});
+
+// 2. Listen for key release (Push-to-Talk mode)
+const unlistenReleased = await listen('shortcut-released', async () => {
+  if (recordingMode === 'push-to-talk' && mediaRecorder?.state === 'recording') {
+    mediaRecorder.stop();
+  }
+});
+
+// 3. Listen for the Escape cancel event
+const unlistenCancelled = await listen('shortcut-cancelled', async () => {
+  if (mediaRecorder?.state === 'recording') {
+    mediaRecorder.stop();
+    discardRecording();
+  }
+  // Always unregister Escape after handling the cancel
+  await invoke('unregister_escape_shortcut');
+});
+
+async function startRecording(windowInfo: ActiveWindowInfo | null, selectedText: string | null) {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mediaRecorder = new MediaRecorder(stream);
+
+  mediaRecorder.onstart = async () => {
+    // Register Escape now that recording is active
+    await invoke('register_escape_shortcut');
+  };
+
+  mediaRecorder.onstop = async () => {
+    // Always unregister Escape when the session ends
+    await invoke('unregister_escape_shortcut');
+  };
+
+  mediaRecorder.start();
+}
+```

@@ -1,0 +1,131 @@
+---
+title: "App discovery commands"
+description: "Commands for searching installed applications to configure app profiles"
+---
+
+App profiles allow Trueears to apply a custom LLM system prompt based on which application is in focus. These commands power the App Profile configuration UI by providing a searchable list of installed applications.
+
+<Note>
+  On **Windows**, app discovery scans Start Menu `.lnk` shortcut files and Windows Registry uninstall keys. On **Linux**, it detects a curated list of popular applications by checking whether known binaries exist on the system. On both platforms, results are cached in memory at startup.
+</Note>
+
+## TypeScript interface
+
+```typescript
+interface InstalledApp {
+  name: string;      // Display name of the application
+  exe_name: string;  // Executable filename, e.g. "Code.exe" (Windows)
+  exe_path: string;  // Full path to the executable
+}
+```
+
+---
+
+## `search_installed_apps`
+
+Searches the cached list of installed applications by name. The search is case-insensitive and matches anywhere in the application name.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const results = await invoke<InstalledApp[]>('search_installed_apps', {
+  query: 'code'
+});
+
+// results might include: VS Code, VS Code Insiders, etc.
+for (const app of results) {
+  console.log(`${app.name} → ${app.exe_name}`);
+}
+```
+
+### Parameters
+
+<ParamField path="query" type="string" required>
+  The search string. Matched case-insensitively against application display names. An empty string returns all indexed applications.
+</ParamField>
+
+### Returns
+
+`Promise<InstalledApp[]>`
+
+<ResponseField name="name" type="string">
+  Human-readable application name (e.g., `"Visual Studio Code"`).
+</ResponseField>
+
+<ResponseField name="exe_name" type="string">
+  Executable filename without the full path (e.g., `"Code.exe"`).
+</ResponseField>
+
+<ResponseField name="exe_path" type="string">
+  Absolute path to the application's executable on disk.
+</ResponseField>
+
+---
+
+## `get_installed_popular_apps`
+
+Returns a pre-filtered list of commonly used applications that are installed on the current machine. This list is shown as quick-picks when a user adds a new App Profile.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const popularApps = await invoke<InstalledApp[]>('get_installed_popular_apps');
+
+// Typical results on a developer machine:
+// Visual Studio Code, Slack, Google Chrome, etc.
+```
+
+### Returns
+
+`Promise<InstalledApp[]>` — An array of `InstalledApp` objects filtered to well-known productivity applications. Only apps that are actually installed are included.
+
+The popular apps list includes applications such as:
+- Visual Studio Code / Cursor
+- Slack
+- Google Chrome / Microsoft Edge / Firefox / Brave
+- Notion
+- Figma
+- Discord
+- Zoom
+- Microsoft Teams
+
+---
+
+## `refresh_installed_apps_cache`
+
+Forces an immediate refresh of the installed apps cache. The cache is populated at startup — use this command if the user installs a new application and wants it to appear without restarting Trueears.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+await invoke('refresh_installed_apps_cache');
+
+// Cache is now up to date — subsequent search_installed_apps calls will reflect new installs
+const results = await invoke<InstalledApp[]>('search_installed_apps', { query: '' });
+```
+
+### Returns
+
+`Promise<void>`
+
+---
+
+## Usage in App Profile selection
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+async function loadAppPickerData(searchQuery: string) {
+  if (searchQuery.trim().length === 0) {
+    // Show popular apps when the search box is empty
+    return await invoke<InstalledApp[]>('get_installed_popular_apps');
+  }
+
+  // Show search results as the user types
+  return await invoke<InstalledApp[]>('search_installed_apps', {
+    query: searchQuery
+  });
+}
+```
+
+The returned `exe_name` is what Trueears stores in an App Profile and matches against the `app_name` field from [`get_active_window_info`](/api/commands/window) at dictation time.

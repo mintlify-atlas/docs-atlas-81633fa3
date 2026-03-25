@@ -1,0 +1,152 @@
+---
+title: "Contributing"
+description: "How to contribute code, report bugs, and participate in the project"
+---
+
+## Git workflow
+
+<Steps>
+
+<Step title="Create a feature branch from main">
+
+```bash
+git checkout -b feat/your-feature-name
+```
+
+Use a prefix that matches your change type: `feat/`, `fix/`, `docs/`, `refactor/`.
+
+</Step>
+
+<Step title="Make focused changes">
+
+Keep commits small and atomic. Each commit should represent a single logical change that can be understood and reverted independently.
+
+</Step>
+
+<Step title="Write or update tests">
+
+```bash
+# Frontend tests
+cd frontend && npm test
+
+# Rust tests
+cd backend && cargo test
+```
+
+</Step>
+
+<Step title="Open a pull request">
+
+Include in your PR description:
+
+- **What**: Brief description of changes
+- **Why**: Motivation or issue reference
+- **How**: Implementation approach (if non-obvious)
+- **Testing**: How you tested the changes
+
+</Step>
+
+<Step title="Address review feedback">
+
+Respond to review comments and push additional commits to address feedback. Request re-review when ready.
+
+</Step>
+
+<Step title="Merge after approval">
+
+PRs are merged after at least one approving review and all CI checks passing.
+
+</Step>
+
+</Steps>
+
+## Commit convention
+
+All commits must follow [Conventional Commits](https://www.conventionalcommits.org/). PRs with non-conforming messages will be asked to rebase.
+
+```
+type(scope): description
+```
+
+**Examples:**
+
+```
+feat(frontend): add dark mode toggle
+fix(backend): resolve clipboard race condition
+docs(readme): update installation instructions
+refactor(hooks): extract audio logic to separate hook
+test(services): add groq service unit tests
+```
+
+| Type | When to use |
+|---|---|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation only |
+| `refactor` | Code change that neither fixes a bug nor adds a feature |
+| `test` | Adding or updating tests |
+| `chore` | Build process, tooling, or dependency updates |
+
+## Code of conduct
+
+This project follows the guidelines in `CODE_OF_CONDUCT.md`. All contributors are expected to uphold a respectful and inclusive environment.
+
+## Reporting bugs
+
+Open an issue on [GitHub Issues](https://github.com/devv-shayan/Trueears/issues/new) and include:
+
+1. **Trueears version** (found in `Settings > About`)
+2. **Operating system** and version
+3. **Steps to reproduce** the issue
+4. **Expected vs actual behavior**
+5. **Console errors** (open with F12 in dev mode)
+6. **Screenshots** if relevant
+
+## Performance budgets
+
+Keep these targets in mind when contributing:
+
+| Metric | Target |
+|---|---|
+| Cold start to ready | < 2 seconds |
+| Hotkey to recording | < 100ms |
+| Transcription display | < 3 seconds |
+| Idle memory | < 50MB |
+| Recording memory | < 150MB |
+| Bundle size | < 25MB |
+
+<Warning>
+PRs that regress any of these budgets must include justification and benchmarks.
+</Warning>
+
+## Security guidelines
+
+- **API keys**: Store in Tauri Store (`@tauri-apps/plugin-store`), never in `localStorage`
+- **Audio buffers**: Clear after transcription completes
+- **Clipboard**: Read only on user action, write only final output
+- **LLM prompts**: Include injection-prevention instructions
+- **User input**: Validate at all trust boundaries
+
+## Coding standards
+
+All contributions must pass linting and formatting checks before merge.
+
+<CodeGroup>
+
+```bash TypeScript / ESLint
+npx eslint .
+```
+
+```bash Rust formatting
+cd backend && cargo fmt --all
+```
+
+```bash Rust linting
+cd backend && cargo clippy -- -D warnings
+```
+
+</CodeGroup>
+
+## License
+
+By contributing, you agree that your contributions will be licensed under [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html).

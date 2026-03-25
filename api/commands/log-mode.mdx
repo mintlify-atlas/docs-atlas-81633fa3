@@ -1,0 +1,207 @@
+---
+title: "Log mode commands"
+description: "Commands for appending voice notes to markdown log files"
+---
+
+Log Mode lets users dictate timestamped bullet points directly into a text file — useful for journaling, work logs, or any running note document. Each app profile can have its own log file path.
+
+## TypeScript interface
+
+```typescript
+interface PathValidation {
+  valid: boolean;           // Whether the path can be used as a log destination
+  exists: boolean;          // Whether the file already exists on disk
+  parent_exists: boolean;   // Whether the parent directory exists
+  writable: boolean;        // Whether the file/directory is writable
+  error_message: string | null; // Human-readable reason if not writable
+}
+```
+
+<Note>
+  Log files can use `.md`, `.txt`, or `.log` extensions. All paths must be absolute and must not contain path traversal sequences (`..`).
+</Note>
+
+---
+
+## `append_to_file`
+
+Appends content to the specified file. If the file does not exist it is created. If the parent directory does not exist, it is created recursively. The frontend is responsible for formatting the timestamp and bullet prefix before calling this command.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const timestamp = new Date().toLocaleString('sv').slice(0, 16).replace('T', ' ');
+const entry = `- [${timestamp}] Fix the authentication bug`;
+
+await invoke('append_to_file', {
+  path: 'C:/Users/name/Documents/Trueears/vscode-log.md',
+  content: entry
+});
+// Appends: "- [2026-03-25 14:30] Fix the authentication bug\n"
+```
+
+### Parameters
+
+<ParamField path="path" type="string" required>
+  Absolute path to the log file. Must use a `.md`, `.txt`, or `.log` extension. The file and any missing parent directories are created automatically.
+</ParamField>
+
+<ParamField path="content" type="string" required>
+  The full line to append, including any timestamp or bullet formatting. A newline is added automatically after the content.
+</ParamField>
+
+### Returns
+
+`Promise<void>`
+
+### Error codes
+
+The command rejects with a string error code prefix on failure:
+
+| Error code | Meaning |
+|-----------|---------|
+| `INVALID_PATH` | Path is not absolute or contains traversal sequences |
+| `INVALID_EXTENSION` | File extension is not `.md`, `.txt`, or `.log` |
+| `PERMISSION_DENIED` | Cannot write to the file |
+| `DISK_FULL` | Insufficient disk space |
+| `FILE_LOCKED` | File is in use by another process (Windows) |
+| `IO_ERROR` | Other I/O failure |
+
+---
+
+## `validate_log_path`
+
+Validates a file path before using it as a log destination. Use this to give the user immediate feedback when they type a path in the settings UI.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const result = await invoke<PathValidation>('validate_log_path', {
+  path: 'C:/Users/name/Documents/Trueears/notes.md'
+});
+
+if (result.valid) {
+  console.log('Path is ready to use');
+  if (!result.exists) {
+    console.log('File will be created on first log entry');
+  }
+} else {
+  console.error('Invalid path:', result.error_message);
+}
+```
+
+### Parameters
+
+<ParamField path="path" type="string" required>
+  The absolute file path to validate. Must use a `.md`, `.txt`, or `.log` extension.
+</ParamField>
+
+### Returns
+
+`Promise<PathValidation>`
+
+<ResponseField name="valid" type="boolean">
+  `true` if the path can be used as a log file destination.
+</ResponseField>
+
+<ResponseField name="exists" type="boolean">
+  `true` if a file already exists at this path.
+</ResponseField>
+
+<ResponseField name="parent_exists" type="boolean">
+  `true` if the parent directory exists. If `false`, `append_to_file` will attempt to create it.
+</ResponseField>
+
+<ResponseField name="writable" type="boolean">
+  `true` if the file or parent directory is writable by the current user.
+</ResponseField>
+
+<ResponseField name="error_message" type="string | null">
+  A human-readable explanation of why the path is not writable, or `null` if it is valid.
+</ResponseField>
+
+### Validation checks
+
+1. Path must be absolute (no relative paths).
+2. Path must not contain traversal sequences (`..`, `./`, `.\\`).
+3. File extension must be `.md`, `.txt`, or `.log`.
+4. The file or parent directory must be writable (if parent does not exist, it is assumed creatable).
+
+---
+
+## `get_default_log_directory`
+
+Returns the default directory where Trueears stores log files. Use this to pre-fill the path input in the settings UI.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const dir = await invoke<string>('get_default_log_directory');
+console.log(dir);
+// Windows: "C:\Users\name\Documents\Trueears"
+// macOS:   "/Users/name/Documents/Trueears"
+// Linux:   "/home/name/Documents/Trueears"
+```
+
+### Returns
+
+`Promise<string>` — An absolute path to the default log directory (`<Documents>/Trueears`). The directory may not exist yet — it is created when the first log entry is appended.
+
+---
+
+## `open_log_file`
+
+Opens the specified log file using the default application associated with its extension on the user's system.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+await invoke('open_log_file', {
+  path: 'C:/Users/name/Documents/Trueears/vscode-log.md'
+});
+```
+
+### Parameters
+
+<ParamField path="path" type="string" required>
+  Absolute path to the file to open. The file must already exist.
+</ParamField>
+
+### Returns
+
+`Promise<void>` — Rejects with `FILE_NOT_FOUND` if the file does not exist, or `OPEN_FAILED` if the OS fails to open it.
+
+---
+
+## Full log mode example
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+async function setupLogMode(userPath: string | null): Promise<string> {
+  // If no path configured, build one from the default directory
+  const dir = await invoke<string>('get_default_log_directory');
+  const logPath = userPath ?? `${dir}/notes.md`;
+
+  // Validate before saving to settings
+  const validation = await invoke<PathValidation>('validate_log_path', {
+    path: logPath
+  });
+
+  if (!validation.valid) {
+    throw new Error(validation.error_message ?? 'Invalid path');
+  }
+
+  return logPath;
+}
+
+async function appendNote(path: string, text: string): Promise<void> {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  await invoke('append_to_file', {
+    path,
+    content: `- [${timestamp}] ${text}`
+  });
+}
+```

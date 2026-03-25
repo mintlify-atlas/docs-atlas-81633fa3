@@ -1,0 +1,101 @@
+---
+title: "Dictation commands"
+description: "Commands that drive the core dictation and text transformation pipeline"
+---
+
+These two commands form the OS-automation layer of the dictation pipeline. The frontend handles audio capture and transcription via the Groq API, then calls `transcription_complete` to paste the result. `copy_selected_text` is used at the start of a recording session to capture any pre-selected text for the select-to-transform feature.
+
+---
+
+## `transcription_complete`
+
+Pastes the supplied text into the previously active application by writing it to the clipboard and simulating a **Ctrl+V** keystroke.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+await invoke('transcription_complete', { text: 'Fix the authentication bug' });
+```
+
+### Parameters
+
+<ParamField path="text" type="string" required>
+  The fully formatted text to paste. This is the final output of the dictation pipeline — raw transcription optionally post-processed by the Groq Chat LLM.
+</ParamField>
+
+### Returns
+
+`Promise<void>`
+
+### Behavior
+
+Calling `transcription_complete` performs the following steps in order:
+
+1. Hides the main overlay window and waits 90ms for the OS to restore focus to the target application.
+2. Writes `text` to the system clipboard using the `arboard` crate.
+3. Simulates a **Ctrl+V** keystroke using the `enigo` crate to trigger a paste in the focused application.
+4. Waits 500ms before resolving, giving the target application time to process the paste.
+
+<Note>
+  If the `enigo`-based paste fails (e.g., on a Wayland session where direct key injection is unavailable), the backend falls back to leaving the text in the clipboard and emits a `show-warning` event to the frontend so the user can paste manually.
+</Note>
+
+### Full pipeline example
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+async function completeDictation(audioBlob: Blob) {
+  // 1. Transcribe via Groq Whisper (frontend network call)
+  const rawText = await transcribeAudio(audioBlob);
+
+  // 2. Optionally format with LLM
+  const formattedText = await formatWithLLM(rawText, systemPrompt);
+
+  // 3. Paste into the active application
+  await invoke('transcription_complete', { text: formattedText });
+}
+```
+
+---
+
+## `copy_selected_text`
+
+Simulates **Ctrl+C** to copy whatever text is currently selected in the focused application, then reads and returns the clipboard contents.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const selectedText = await invoke<string | null>('copy_selected_text');
+
+if (selectedText) {
+  console.log('User had selected:', selectedText);
+  // Use as context for LLM transformation
+}
+```
+
+### Returns
+
+`Promise<string | null>` — The text that was in the clipboard after the simulated Ctrl+C, or `null` if nothing was selected.
+
+### Behavior
+
+1. Simulates a **Ctrl+C** keystroke via `enigo`.
+2. Reads the clipboard contents via `arboard`.
+3. Returns the clipboard text, or `null` if the clipboard is empty or contains non-text data.
+
+### Usage in the select-to-transform flow
+
+`copy_selected_text` is called automatically at the start of each recording session (triggered from `shortcuts.rs` when the global hotkey fires). The selected text is passed to the LLM alongside the spoken instruction so the model can transform the selection according to the user's spoken command.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+// Called when recording starts
+const selectedText = await invoke<string | null>('copy_selected_text');
+
+// Later, when building the LLM prompt
+const systemPrompt = selectedText
+  ? `Transform the selected text according to the user's instruction: "${selectedText}"`
+  : 'Transcribe and format the user\'s speech.';
+```

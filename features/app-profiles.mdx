@@ -1,0 +1,137 @@
+---
+title: "App Profiles"
+description: "Context-aware formatting that adapts to your active application"
+---
+
+App Profiles tell Trueears how to format your dictated text depending on which app you're using. When you dictate in Slack, you get casual chat-style output. When you dictate in VS Code, you get clean technical prose. No configuration needed for the apps Trueears ships with — it just works.
+
+## How App Detection Works
+
+Every time you press `Ctrl+Shift+K`, the Rust backend (`window.rs`) calls the OS to identify the foreground window:
+
+- **Windows**: Win32 `GetForegroundWindow` returns the window handle; `GetWindowText` retrieves the title; the executable path is resolved from the process ID
+- **Linux (X11)**: `xdotool getactivewindow` retrieves the window ID and properties
+- **Linux (Wayland)**: XDG Desktop Portal provides window information
+
+The `app_name`, `window_title`, `executable_path`, and (for browser windows) the active URL are passed to the frontend. `AppProfileService` then matches this against your profiles using a priority order:
+
+1. **URL match** — most specific; used for browser-based apps (Gmail, WhatsApp, Google Docs)
+2. **Window title pattern** — regex match against the window title
+3. **Executable match** — matches the `.exe` name or process stem
+
+## Pre-Configured Profiles
+
+Trueears ships with profiles for the most common apps. These are applied automatically — no setup required.
+
+| Application | Executable | Formatting Style |
+|-------------|-----------|------------------|
+| VS Code | `Code.exe` | Technical docs, minimal prose, exact filename casing |
+| Cursor | `Cursor.exe` | Technical docs, minimal prose, exact filename casing |
+| Slack | `slack.exe` | Casual, short, friendly, conversational |
+| Discord | `Discord.exe` | Casual, short, friendly, conversational |
+| Microsoft Teams | `Teams.exe` | Business chat, clear and concise |
+| Outlook | `OUTLOOK.EXE` | Professional email tone, concise structure |
+| Gmail | `chrome.exe` + `mail.google.com` | Professional email, clear paragraphs |
+| Notion | `Notion.exe` | Structured notes, bullets where natural, light Markdown |
+| OneNote | `ONENOTE.EXE` | Structured notes, bullets where helpful |
+| Word | `WINWORD.EXE` | Formal document tone, proper grammar |
+| Google Docs | `chrome.exe` + `docs.google.com` | Formal document tone, proper grammar |
+| WhatsApp | `chrome.exe` + `web.whatsapp.com` | Casual, friendly, emoji-friendly |
+
+<Note>
+  Browser-based apps (Gmail, WhatsApp, Google Docs) are matched using the active tab URL, so the same Chrome process can map to different profiles depending on what site is open.
+</Note>
+
+## Language Override
+
+Each profile can override the global transcription language. This is ideal for multilingual workflows.
+
+**Example use cases:**
+- Spanish for WhatsApp chats
+- English for VS Code
+- French for your email client
+- Auto-detect for general use
+
+The language override takes priority over the global transcription setting whenever you record in the matching app.
+
+**To configure:**
+1. Go to **Settings > App Profiles**
+2. Create or edit a profile
+3. Under **Language Override**, click **Change**
+4. Select a language (shown with flag icons) or leave as **Default**
+5. Click **Save**
+
+## Custom System Prompts
+
+Each profile has a **system prompt** — a short instruction that tells the LLM how to format your text for that app. The prompt is appended to a base instruction that always instructs the model to format rather than respond.
+
+**Examples of effective prompts:**
+
+```
+Casual chat style. Short, friendly, conversational. No extra fluff.
+```
+
+```
+Professional email tone. Clear paragraphs. No subject line unless dictated.
+```
+
+```
+Keep code blocks intact, minimal prose. Use exact casing for filenames/extensions.
+```
+
+Keep prompts short and directive. The model already knows it should format, not answer — you just need to describe the *style* of the output.
+
+## Creating a Custom Profile
+
+<Steps>
+  <Step title="Open App Profiles settings">
+    Press `Ctrl+Shift+S` to open Settings, then navigate to **App Profiles**.
+  </Step>
+  <Step title="Add a new profile">
+    Click **Add Profile**. You can search for the app by name — Trueears scans installed applications and surfaces a list of popular apps.
+  </Step>
+  <Step title="Enter the executable name">
+    For desktop apps, enter the `exe_name` (e.g., `notepad.exe`). For browser-based apps, select the browser and enter the site URL (e.g., `linear.app`).
+  </Step>
+  <Step title="Write a system prompt">
+    Describe how you want text formatted in this app. Keep it concise — one or two short sentences is enough.
+  </Step>
+  <Step title="Set a language override (optional)">
+    If you dictate in a specific language in this app, select it under **Language Override**.
+  </Step>
+  <Step title="Save">
+    Click **Save**. The profile is active immediately for the next recording.
+  </Step>
+</Steps>
+
+## Reset to Defaults
+
+The **Reset to Defaults** button in **Settings > App Profiles** clears all custom profiles and removes cached profile data. Use this if:
+
+- The LLM is responding conversationally instead of formatting (common symptom of a corrupted prompt)
+- You want to start fresh after experimenting with custom prompts
+- Profiles are not matching correctly after an app update
+
+<Warning>
+  Reset to Defaults removes **all** custom profiles permanently. Your global settings and API keys are not affected.
+</Warning>
+
+## Frequently Asked Questions
+
+<AccordionGroup>
+  <Accordion title="What if my app isn't listed?">
+    Trueears will fall back to the default formatting prompt, which cleans up transcribed text without any app-specific style. You can create a custom profile at any time to add formatting instructions for any application.
+  </Accordion>
+  <Accordion title="How do I find the exe_name for my app?">
+    The quickest way is to open Task Manager (Windows: `Ctrl+Shift+Esc`), find your app under the **Details** tab, and copy the value in the **Name** column. For most apps this is something like `notepad.exe` or `slack.exe`. You can also right-click the app's taskbar icon and choose **Properties** to see the executable path.
+  </Accordion>
+  <Accordion title="Can I have multiple profiles for the same app?">
+    For desktop apps, only one profile per executable is supported. For browser-based apps, you can create multiple profiles for the same browser executable as long as each profile targets a different URL (e.g., one for `gmail.com` and one for `outlook.office.com`).
+  </Accordion>
+  <Accordion title="Why is the wrong profile being matched?">
+    Check that the `exe_name` exactly matches what appears in Task Manager. If you're using a browser-based app, make sure the URL in the profile matches the site (e.g., `web.whatsapp.com` rather than `whatsapp.com`). You can open the browser's developer console and check `window.location.href` to confirm the exact URL Trueears will see.
+  </Accordion>
+  <Accordion title="The LLM is responding instead of formatting — what do I do?">
+    Go to **Settings > App Profiles** and click **Reset to Defaults**. This clears any corrupted system prompts. You can then recreate your custom profiles with simpler, more directive prompt text.
+  </Accordion>
+</AccordionGroup>

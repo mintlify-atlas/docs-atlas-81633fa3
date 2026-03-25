@@ -1,0 +1,218 @@
+---
+title: "Authentication commands"
+description: "Google OAuth authentication commands for user account management"
+---
+
+Trueears uses Google OAuth 2.0 for user authentication. After a successful login, tokens are stored in a local JSON file (`auth.json`) in the platform-specific app data directory — not the OS keyring. On Windows this is `%APPDATA%\com.Trueears\auth.json`; on Linux/macOS it is `~/.Trueears/auth.json`.
+
+## TypeScript interfaces
+
+```typescript
+interface AuthState {
+  is_authenticated: boolean;
+  user: UserInfo | null;
+}
+
+interface UserInfo {
+  id: string;             // Google account user ID
+  email: string;          // Google account email address
+  name: string | null;    // Display name (may be null)
+  picture: string | null; // URL of the profile photo (may be null)
+}
+```
+
+---
+
+## OAuth flow
+
+`start_google_login` initiates the following flow:
+
+1. Reads `GOOGLE_CLIENT_ID` from the environment.
+2. Constructs a Google OAuth 2.0 authorization URL (scopes: `openid email profile`).
+3. Opens the URL in the user's default browser.
+4. Starts a local HTTP callback server on port `8585` to receive the authorization code.
+5. Exchanges the authorization code for access and refresh tokens via the Trueears API server (`API_URL/auth/google`).
+6. Stores the tokens and user profile in `auth.json` on disk.
+7. Emits `auth-success` (with `UserInfo` payload) or `auth-error` (with error string) to all windows.
+
+<Note>
+  The `GOOGLE_CLIENT_ID` environment variable must be set in `.env` at the workspace root. Without it, `start_google_login` will throw an error. The `API_URL` defaults to `https://trueears-backend.vercel.app`.
+</Note>
+
+---
+
+## `start_google_login`
+
+Opens the Google OAuth consent screen in the default browser and starts the local callback server.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+// Listen for the async result before triggering login
+const unlistenSuccess = await listen<UserInfo>('auth-success', (event) => {
+  console.log('Logged in as:', event.payload.email);
+  unlistenSuccess();
+});
+
+const unlistenError = await listen<string>('auth-error', (event) => {
+  console.error('Login failed:', event.payload);
+  unlistenError();
+});
+
+try {
+  await invoke('start_google_login');
+  // Browser opens — result arrives via auth-success / auth-error events
+} catch (error) {
+  console.error('Could not start login:', error);
+}
+```
+
+### Returns
+
+`Promise<void>` — Resolves when the browser has been opened and the callback server has started. The actual authentication result arrives asynchronously via `auth-success` or `auth-error` events.
+
+---
+
+## `get_auth_state`
+
+Returns the current authentication state by reading tokens and user info from the local auth file.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const state = await invoke<AuthState>('get_auth_state');
+
+if (state.is_authenticated) {
+  console.log('Signed in as', state.user?.name ?? state.user?.email);
+} else {
+  console.log('Not signed in');
+}
+```
+
+### Returns
+
+`Promise<AuthState>`
+
+<ResponseField name="is_authenticated" type="boolean">
+  `true` if a valid access token and user info are present in the local auth file.
+</ResponseField>
+
+<ResponseField name="user" type="UserInfo | null">
+  The stored user profile, or `null` if not authenticated.
+  <Expandable title="properties">
+    <ResponseField name="id" type="string">
+      The user's Google account ID.
+    </ResponseField>
+    <ResponseField name="email" type="string">
+      The user's Google account email address.
+    </ResponseField>
+    <ResponseField name="name" type="string | null">
+      The user's display name. May be `null` if not provided by Google.
+    </ResponseField>
+    <ResponseField name="picture" type="string | null">
+      URL of the user's Google profile photo. May be `null` if not available.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## `get_user_info`
+
+Retrieves the stored user profile from the local auth file without verifying token validity.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const user = await invoke<UserInfo | null>('get_user_info');
+
+if (user) {
+  console.log('Welcome,', user.name ?? user.email);
+}
+```
+
+### Returns
+
+`Promise<UserInfo | null>` — The stored `UserInfo`, or `null` if no auth file exists.
+
+---
+
+## `get_access_token`
+
+Retrieves the stored access token from the local auth file.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const token = await invoke<string | null>('get_access_token');
+
+if (token) {
+  // Use token to make authenticated API requests
+  const headers = { Authorization: `Bearer ${token}` };
+}
+```
+
+### Returns
+
+`Promise<string | null>` — The stored access token string, or `null` if no auth file exists or the file cannot be parsed.
+
+---
+
+## `logout`
+
+Clears the stored tokens and user data by deleting the local auth file. Optionally revokes the refresh token on the API server.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+await invoke('logout');
+
+// User is now signed out
+const state = await invoke<AuthState>('get_auth_state');
+console.log(state.is_authenticated); // false
+```
+
+### Returns
+
+`Promise<void>`
+
+### Behavior
+
+1. Sends a POST to `API_URL/auth/logout` with the refresh token (best-effort — ignored if the request fails).
+2. Deletes the local `auth.json` file.
+
+---
+
+## Complete auth flow example
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+async function handleLoginClick() {
+  // Set up listeners before triggering the flow
+  const unlistenSuccess = await listen<UserInfo>('auth-success', (event) => {
+    showWelcomeBanner(event.payload.name ?? event.payload.email);
+    unlistenSuccess();
+  });
+
+  const unlistenError = await listen<string>('auth-error', (event) => {
+    showError(`Login failed: ${event.payload}`);
+    unlistenError();
+  });
+
+  try {
+    await invoke('start_google_login');
+  } catch (error) {
+    showError(`Could not open login: ${error}`);
+    unlistenSuccess();
+    unlistenError();
+  }
+}
+
+async function handleLogoutClick() {
+  await invoke('logout');
+  redirectToLoginScreen();
+}
+```

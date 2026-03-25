@@ -1,0 +1,187 @@
+---
+title: "Development setup"
+description: "Set up your local environment for contributing to Trueears"
+---
+
+## Prerequisites
+
+Before you begin, make sure you have the following installed:
+
+| Requirement | Version | Notes |
+|---|---|---|
+| Node.js | v18+ | [nodejs.org](https://nodejs.org/) |
+| Rust | Latest stable | Via `rustup` |
+| Visual Studio Build Tools | 2019+ | Windows only |
+
+## Install Rust
+
+<CodeGroup>
+
+```bash Windows
+winget install Rustlang.Rustup
+```
+
+```bash Linux / macOS
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+</CodeGroup>
+
+After installation, verify with:
+
+```bash
+rustc --version
+cargo --version
+```
+
+## Clone and install
+
+<Steps>
+
+<Step title="Clone the repository">
+
+```bash
+git clone https://github.com/devv-shayan/Trueears.git
+cd Trueears
+```
+
+</Step>
+
+<Step title="Install dependencies">
+
+```bash
+npm install
+```
+
+</Step>
+
+<Step title="Configure environment variables">
+
+Copy the example environment file and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+Key variables to configure:
+
+| Variable | Purpose |
+|---|---|
+| `API_URL` | Auth server URL (default: `https://trueears-backend.vercel.app`) |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `JWT_SECRET` | JWT signing secret |
+| `LEMONSQUEEZY_API_KEY` | LemonSqueezy API key for payments |
+| `LEMONSQUEEZY_STORE_ID` | LemonSqueezy store ID |
+| `LEMONSQUEEZY_WEBHOOK_SECRET` | Webhook signature secret |
+| `VITE_PAYMENT_SERVICE_URL` | Payment service URL for frontend |
+
+<Note>
+For local frontend development you only need the `VITE_*` variables. Backend services require the full set.
+</Note>
+
+</Step>
+
+<Step title="Start development mode">
+
+<CodeGroup>
+
+```bash Windows / macOS
+npm run dev
+```
+
+```bash Linux
+npm run dev:linux
+```
+
+</CodeGroup>
+
+This starts the Tauri dev shell with hot-reload — the Vite frontend server (port 3000) and the Rust backend launch together.
+
+</Step>
+
+</Steps>
+
+## Available scripts
+
+| Script | Description |
+|---|---|
+| `npm run dev` | Start Tauri dev mode with hot-reload |
+| `npm run dev:linux` | Linux-specific dev launcher with clean environment |
+| `npm run vite:dev` | Start frontend dev server only |
+| `npm run vite:build` | Build frontend assets only |
+| `npm run sync-version` | Sync version from `package.json` to `tauri.conf.json` |
+
+## Code conventions
+
+### TypeScript
+
+- **Strict mode** — no `any` types without justification
+- **Functional components** — no class components
+- **Custom hooks** — extract all reusable stateful logic
+- **Explicit return types** — required on all exported functions
+
+```typescript
+// Good: explicit types, functional style
+export function useAudioRecorder(): AudioRecorderHook {
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  // ...
+}
+
+// Avoid: implicit any, missing return type
+export function useAudioRecorder() {
+  const [isRecording, setIsRecording] = useState(false);
+  // ...
+}
+```
+
+### Rust
+
+- Use `Result<T, E>` for all fallible operations — no panics
+- Validate Tauri command inputs before processing
+- Prefer `async`/`await` for I/O operations
+
+```rust
+// Good: Result type, input validation
+#[tauri::command]
+async fn transcribe_audio(audio_data: Vec<u8>) -> Result<String, String> {
+    if audio_data.is_empty() {
+        return Err("Empty audio data".to_string());
+    }
+    // ...
+}
+
+// Avoid: panics on error
+#[tauri::command]
+fn transcribe_audio(audio_data: Vec<u8>) -> String {
+    assert!(!audio_data.is_empty()); // Will panic!
+    // ...
+}
+```
+
+### Architecture layers
+
+Imports must flow downward only — never import UI components from services or controllers:
+
+```
+UI Components
+     ↓
+   Hooks
+     ↓
+ Services / Controllers
+     ↓
+   Backend (Tauri)
+```
+
+## Running tests
+
+<CodeGroup>
+
+```bash Frontend
+cd frontend && npm test
+```
+
+```bash Rust
+cd backend && cargo test
+```
+
+</CodeGroup>

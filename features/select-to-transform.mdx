@@ -1,0 +1,82 @@
+---
+title: "Select-to-Transform"
+description: "Transform any existing text using natural voice commands"
+---
+
+Select-to-Transform lets you rewrite, reformat, or translate any text in any app — just select it, press the hotkey, speak an instruction, and the selection is replaced with the transformed result.
+
+<Note>
+  Select-to-Transform uses the LLM to **transform the selected text** according to your spoken instruction. It does not respond conversationally — it only returns the modified version of what you selected.
+</Note>
+
+## Workflow
+
+<Steps>
+  <Step title="Select the text you want to transform">
+    Highlight any text in any application — a sentence in an email, a paragraph in a document, a comment in your code editor. Any selection that can be copied via `Ctrl+C` will work.
+  </Step>
+  <Step title="Press Ctrl+Shift+K">
+    The recording overlay appears near your cursor, just like a normal dictation session. Trueears detects that you have text selected and switches into transform mode automatically.
+  </Step>
+  <Step title="Speak your transformation instruction">
+    Describe what you want done with the selected text. For example:
+    - *"Make it professional"*
+    - *"Translate to Spanish"*
+    - *"Convert to bullet points"*
+    - *"Fix the grammar"*
+    - *"Summarize this"*
+  </Step>
+  <Step title="Press Ctrl+Shift+K again (or release the key)">
+    Recording stops. The selected text and your spoken instruction are both sent to the LLM.
+  </Step>
+  <Step title="Selected text is replaced">
+    The original selection is replaced with the transformed output. The clipboard and paste simulation happen in `automation.rs` using `arboard` and `enigo` — the same mechanism as regular dictation.
+  </Step>
+</Steps>
+
+## Example Transformations
+
+| Instruction | What the LLM does |
+|-------------|------------------|
+| "Make it professional" | Rewrites the text in formal, polished language |
+| "Translate to Spanish" | Translates the full selection to Spanish |
+| "Convert to bullet points" | Reformats prose as a bullet list |
+| "Fix the grammar" | Corrects spelling, punctuation, and grammar errors |
+| "Summarize this" | Condenses the selection into a shorter summary |
+| "Make it shorter" | Removes unnecessary words while preserving meaning |
+| "Add more detail" | Expands the text with relevant additional context |
+| "Change to past tense" | Rewrites verbs in the past tense |
+
+## How It Works Technically
+
+When you trigger the hotkey with text selected, the Rust backend runs two operations before the overlay appears:
+
+1. **`copy_selected_text()`** — simulates `Ctrl+C` via `enigo` to copy whatever is currently highlighted to the clipboard, then reads the clipboard value using `arboard`
+2. **`get_active_window_info()`** — captures the foreground app for profile matching
+
+Both the copied selection and your spoken instruction are forwarded to the frontend. `dictationController.ts` calls `GroqChatService.transformText()` with a prompt that combines:
+
+- The original selected text
+- Your spoken transformation instruction
+
+The LLM returns only the transformed version of the text — no explanation, no preamble.
+
+```
+Original selection:  "hey can u send me the file when ur done thanks"
+Instruction spoken:  "Make it professional"
+Output pasted:       "Hi, could you please send me the file once you're done? Thank you."
+```
+
+## Tips
+
+<Tip>
+  You can chain transformations: paste the result, select it again, and apply another instruction. For example, first "translate to Spanish", then "make it formal".
+</Tip>
+
+<Tip>
+  Select-to-Transform works in any app that supports standard clipboard operations — code editors, email clients, browsers, word processors, chat apps, and more.
+</Tip>
+
+<Warning>
+  Select-to-Transform requires LLM post-processing to be enabled. If you haven't configured an LLM API key yet, go to **Settings > LLM Post-Processing** and add your key.
+</Warning>

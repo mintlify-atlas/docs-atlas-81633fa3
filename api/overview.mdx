@@ -1,0 +1,126 @@
+---
+title: "API overview"
+description: "How to invoke Tauri commands from the Trueears frontend"
+---
+
+The Trueears backend exposes functionality to the frontend through [Tauri commands](https://tauri.app/develop/calling-rust/). All commands are called via `invoke` from `@tauri-apps/api/core`.
+
+## Importing invoke
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+```
+
+## Basic invocation
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+try {
+  const windowInfo = await invoke<ActiveWindowInfo | null>('get_active_window_info');
+  console.log('Active window:', windowInfo?.window_title);
+} catch (error) {
+  // error is always a string — the Rust error message
+  console.error('Command failed:', error);
+}
+```
+
+## Error handling
+
+All commands return `Result<T, String>` in Rust. The Tauri bridge translates this to a JavaScript `Promise`:
+
+- **Success** — the promise resolves with the return value.
+- **Failure** — the promise rejects with a `string` containing the Rust error message.
+
+```typescript
+try {
+  await invoke('set_store_value', { key: 'theme', value: 'dark' });
+} catch (error) {
+  // `error` is a string, not an Error object
+  console.error('Command failed:', error);
+}
+```
+
+## TypeScript types
+
+The following interfaces are used throughout the API. They match the Rust structs defined in the backend source.
+
+```typescript
+// From backend/src/window.rs
+interface ActiveWindowInfo {
+  app_name: string;        // Executable filename, e.g. "Code.exe"
+  window_title: string;    // Window title bar text
+  executable_path: string; // Full path to the executable
+  url: string | null;      // Active browser URL (browser windows only)
+}
+
+// From backend/src/lib.rs
+interface CursorPosition {
+  x: number;  // Horizontal screen coordinate
+  y: number;  // Vertical screen coordinate
+}
+
+// From backend/src/installed_apps/windows_impl.rs
+interface InstalledApp {
+  name: string;      // Display name
+  exe_name: string;  // Executable filename
+  exe_path: string;  // Full path to the executable
+}
+
+// From backend/src/auth.rs
+interface AuthState {
+  is_authenticated: boolean;
+  user: UserInfo | null;
+}
+
+interface UserInfo {
+  id: string;             // Google account user ID
+  email: string;          // Google account email address
+  name: string | null;    // Display name (may be null)
+  picture: string | null; // Profile photo URL (may be null)
+}
+
+// From backend/src/log_mode.rs
+interface PathValidation {
+  valid: boolean;               // Whether path can be used as a log destination
+  exists: boolean;              // Whether file already exists
+  parent_exists: boolean;       // Whether parent directory exists
+  writable: boolean;            // Whether file/directory is writable
+  error_message: string | null; // Reason if not writable
+}
+
+// From backend/src/shortcuts.rs
+interface ShortcutPressedPayload {
+  window_info: ActiveWindowInfo | null;
+  selected_text: string | null;
+}
+```
+
+## Command categories
+
+<CardGroup cols={2}>
+  <Card title="Settings" icon="gear" href="/api/commands/settings">
+    Read and write persistent application settings via the Tauri store plugin.
+  </Card>
+  <Card title="Window Management" icon="window" href="/api/commands/window">
+    Detect the active window, get cursor position, and control overlay behavior.
+  </Card>
+  <Card title="Dictation & Automation" icon="microphone" href="/api/commands/dictation">
+    Paste transcribed text and copy selected text using OS-level automation.
+  </Card>
+  <Card title="Hotkey Management" icon="keyboard" href="/api/commands/shortcuts">
+    Dynamically register and unregister the Escape key shortcut during recording.
+  </Card>
+  <Card title="App Discovery" icon="magnifying-glass" href="/api/commands/app-discovery">
+    Search installed applications for use in App Profile configuration.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/api/commands/auth">
+    Google OAuth login, session state, and logout.
+  </Card>
+  <Card title="Log Mode" icon="file-lines" href="/api/commands/log-mode">
+    Append timestamped voice notes to log files.
+  </Card>
+  <Card title="Events" icon="bolt" href="/api/events">
+    Backend events the frontend can subscribe to via Tauri's event system.
+  </Card>
+</CardGroup>

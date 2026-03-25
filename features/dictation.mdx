@@ -1,0 +1,123 @@
+---
+title: "AI Dictation"
+description: "How Trueears captures your voice and delivers formatted text into any app"
+---
+
+Trueears captures your voice via a global shortcut, transcribes it through Groq Whisper, optionally formats the result with an LLM, and pastes the final text directly into whatever app you're using — all in under three seconds.
+
+## The Dictation Pipeline
+
+Every recording follows the same path from hotkey press to pasted text:
+
+<Steps>
+  <Step title="Hotkey detected">
+    You press `Ctrl+Shift+K`. The Rust backend's `shortcuts.rs` module intercepts this as a system-wide global shortcut — no need for Trueears to be focused.
+  </Step>
+  <Step title="Window detection">
+    Before the overlay appears, `window.rs` calls the OS to identify the foreground window (Win32 `GetForegroundWindow` on Windows, `xdotool` on Linux). The app name, window title, executable path, and cursor position are captured and sent to the frontend via a Tauri IPC event.
+  </Step>
+  <Step title="Overlay shown">
+    The transparent, always-on-top overlay window appears near your cursor, displaying a recording indicator. The overlay is click-through when inactive so it never interrupts your workflow.
+  </Step>
+  <Step title="Audio recording">
+    The frontend starts capturing audio using the browser's `MediaRecorder` API inside the Tauri WebView. Audio stays local — it never passes through the Rust backend.
+  </Step>
+  <Step title="Stop triggered">
+    You stop recording by pressing `Ctrl+Shift+K` again, releasing the key (Push-to-Talk), or pressing `Escape` to cancel.
+  </Step>
+  <Step title="Groq Whisper transcription">
+    The audio blob is sent directly from the frontend to the Groq Whisper API (`whisper-large-v3-turbo` by default). The raw transcription text is returned, typically within a second.
+  </Step>
+  <Step title="LLM post-processing (optional)">
+    If LLM formatting is enabled, `dictationController.ts` matches the active window against your App Profiles, selects the appropriate system prompt, and sends the raw transcription to Groq Chat for formatting. The LLM is instructed to format — never to respond conversationally.
+  </Step>
+  <Step title="Auto-paste">
+    The frontend calls the `transcription_complete` Tauri command. `automation.rs` writes the text to the clipboard using `arboard` and simulates `Ctrl+V` with `enigo`, pasting directly into the original app.
+  </Step>
+</Steps>
+
+## Recording Modes
+
+Configure your preferred mode in **Settings > Preferences**.
+
+| Mode | Behavior | Best For |
+|------|----------|---------|
+| **Auto** (default) | Quick tap = Toggle; hold = Push-to-Talk | Maximum flexibility |
+| **Toggle** | Press once to start, press again to stop | Long dictation sessions |
+| **Push-to-Talk** | Hold to record, release to stop | Short commands and quick notes |
+
+<Tip>
+  Auto mode is the most versatile: a brief tap behaves like Toggle for longer passages, while holding the key activates Push-to-Talk for quick one-liners.
+</Tip>
+
+See [Recording Modes](/configuration/recording-modes) for detailed configuration instructions.
+
+## The Overlay
+
+The overlay is a transparent, always-on-top window that spans all monitors. Key design properties:
+
+- **Cursor-positioned** — appears near wherever your cursor is, not in a fixed corner
+- **Click-through when idle** — when not recording, all mouse events pass straight through
+- **No focus stealing** — the overlay never takes focus away from the app you're dictating into
+- **Visual indicator** — shows an animated recording state so you always know when the mic is live
+
+On Wayland (Linux), the overlay uses a smaller centered window with `set_focusable(false)` to replicate this behavior within portal constraints.
+
+## Transcription Model
+
+Trueears uses **`whisper-large-v3-turbo`** via the Groq API by default. This model provides the best balance of speed and accuracy for real-time dictation.
+
+To change the model:
+1. Press `Ctrl+Shift+S` to open Settings
+2. Go to the **Transcription** tab
+3. Select a different Whisper model from the dropdown
+
+<Note>
+  Groq provides a free tier with generous limits — most users will never exceed it for normal dictation use.
+</Note>
+
+## LLM Post-Processing
+
+The optional LLM formatting step sends your raw transcription through Groq Chat before pasting. The LLM receives a system prompt that instructs it to:
+
+- Clean up filler words and disfluencies
+- Apply formatting appropriate for the active app (e.g., bullet points in Notion, professional tone in Outlook)
+- **Never respond conversationally** — it outputs only the formatted version of what you said
+
+If the LLM returns something that looks like a refusal (`"I cannot..."`, `"As an AI..."`, etc.), Trueears automatically falls back to the raw transcription.
+
+To enable LLM post-processing:
+1. Open Settings (`Ctrl+Shift+S`)
+2. Go to the **LLM Post-Processing** tab
+3. Toggle the feature on and enter your API key
+4. Select a model (default: `openai/gpt-oss-120b`)
+
+Context-aware formatting is driven by App Profiles — see [App Profiles](/features/app-profiles) to learn how Trueears adapts its output per application.
+
+## Performance Targets
+
+| Metric | Target |
+|--------|--------|
+| Hotkey press to recording start | < 100ms |
+| Transcription displayed after speech ends | < 3s |
+
+<Info>
+  Actual transcription time depends on audio length and Groq API response time. The `whisper-large-v3-turbo` model is optimized for low latency.
+</Info>
+
+## Keyboard Shortcuts
+
+| Action | Windows / Linux | macOS |
+|--------|----------------|-------|
+| Start / stop recording | `Ctrl+Shift+K` | `Cmd+Shift+K` |
+| Open Settings | `Ctrl+Shift+S` | `Cmd+Shift+S` |
+| Cancel recording | `Escape` | `Escape` |
+
+<CardGroup cols={2}>
+  <Card title="Recording Modes" href="/configuration/recording-modes">
+    Configure Auto, Toggle, and Push-to-Talk in detail
+  </Card>
+  <Card title="App Profiles" href="/features/app-profiles">
+    Control how the LLM formats text per application
+  </Card>
+</CardGroup>

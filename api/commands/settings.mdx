@@ -1,0 +1,90 @@
+---
+title: "Settings commands"
+description: "Commands for reading and writing persistent application settings"
+---
+
+Settings are stored in a JSON file (`settings.json`) managed by the [Tauri store plugin](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/store). Values persist across application restarts.
+
+## `get_store_value`
+
+Retrieves a value from the persistent settings store by key.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+const value = await invoke<string | null>('get_store_value', { key: 'GROQ_API_KEY' });
+
+if (value) {
+  console.log('API key is configured');
+} else {
+  console.log('No API key set');
+}
+```
+
+### Parameters
+
+<ParamField path="key" type="string" required>
+  The settings key to retrieve. Any string is valid. Keys that contain `KEY`, `TOKEN`, `SECRET`, or `PASSWORD` (case-insensitive) are automatically redacted in application logs.
+</ParamField>
+
+### Returns
+
+`Promise<string | null>` — The stored value, or `null` if the key has not been set.
+
+<Note>
+  Keys that contain `KEY`, `TOKEN`, `SECRET`, or `PASSWORD` in their name are logged with a redacted value and length indicator (e.g., `<redacted len=40>`) to prevent secrets from appearing in log files.
+</Note>
+
+---
+
+## `set_store_value`
+
+Saves a value to the persistent settings store and persists it to disk immediately.
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+// Save a plain setting
+await invoke('set_store_value', { key: 'theme', value: 'dark' });
+
+// Save a sensitive credential
+await invoke('set_store_value', { key: 'GROQ_API_KEY', value: apiKey });
+```
+
+### Parameters
+
+<ParamField path="key" type="string" required>
+  The settings key to write. Keys containing `KEY`, `TOKEN`, `SECRET`, or `PASSWORD` are redacted in logs.
+</ParamField>
+
+<ParamField path="value" type="string" required>
+  The string value to store.
+</ParamField>
+
+### Returns
+
+`Promise<void>`
+
+### Side effects
+
+After saving, `set_store_value` emits a [`settings-changed`](/api/events#settings-changed) event to **all open windows**. Any window listening to this event should re-read the values it depends on.
+
+```typescript
+import { listen } from '@tauri-apps/api/event';
+
+// In any window — re-load config when another window saves a setting
+const unlisten = await listen('settings-changed', () => {
+  reloadConfig();
+});
+```
+
+---
+
+## Common setting keys
+
+| Key | Description |
+|-----|-------------|
+| `GROQ_API_KEY` | Groq API key for Whisper STT and chat LLM |
+| `theme` | UI color theme (`light` \| `dark`) |
+| `Trueears_ONBOARDING_COMPLETE` | Whether the user has completed onboarding (`"true"`) |
+| `app_profiles` | JSON-serialized array of app profile configurations |

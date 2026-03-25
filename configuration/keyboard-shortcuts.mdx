@@ -1,0 +1,58 @@
+---
+title: "Keyboard shortcuts"
+description: "Global hotkeys that work system-wide, even when Trueears isn't focused"
+---
+
+Trueears registers system-wide hotkeys using Tauri's global-shortcut plugin. These shortcuts are active as long as Trueears is running — even if the app window is minimized or not focused.
+
+## Shortcuts reference
+
+| Action | Windows / Linux | macOS |
+|--------|----------------|-------|
+| Start / stop recording | `Ctrl+Shift+K` | `Cmd+Shift+K` |
+| Open Settings | `Ctrl+Shift+S` | `Cmd+Shift+S` |
+| Cancel recording | `Escape` | `Escape` |
+
+<Note>
+  `Escape` to cancel recording is only registered while a recording is in progress. It is automatically unregistered when you are not recording, so it does not interfere with other applications.
+</Note>
+
+## How global shortcuts work
+
+When Trueears starts, it registers `Ctrl+Shift+K` and `Ctrl+Shift+S` with the operating system via Tauri's `global-shortcut` plugin. The OS intercepts these key combinations at the system level and routes them to Trueears regardless of which application has focus.
+
+This means you can start a dictation session without switching away from your editor, chat window, or any other app — simply press the hotkey and start speaking.
+
+<Tabs>
+  <Tab title="Windows / Linux">
+    Global shortcuts are registered through the Windows API (Win32) on Windows and through X11 on most Linux desktops.
+
+    **Wayland note:** On Wayland compositors, Tauri uses the XDG Desktop Portal for shortcut registration. Support depends on your compositor and portal version. If shortcuts are not working on Wayland, check that `xdg-desktop-portal` is installed and running.
+  </Tab>
+  <Tab title="macOS">
+    Global shortcuts use the macOS `CGEventTap` API. You may be prompted to grant Trueears **Accessibility** permissions the first time it registers a shortcut — this is required for system-wide hotkey capture.
+  </Tab>
+</Tabs>
+
+## Troubleshooting hotkey conflicts
+
+<Warning>
+  Some elevated applications (games running in exclusive fullscreen, processes with administrator privileges, certain security software) can block or intercept global hotkeys before Trueears receives them. If a shortcut stops responding, this is the most common cause.
+</Warning>
+
+**If a hotkey does not respond:**
+
+<Steps>
+  <Step title="Check for conflicts">
+    Other applications may have claimed the same key combination. Common culprits include screen capture tools, password managers, and gaming overlays. Temporarily close other apps and test whether the shortcut works.
+  </Step>
+  <Step title="Check process elevation">
+    If the foreground application is running with administrator or elevated privileges and Trueears is not, the OS may block hotkey delivery. Try running Trueears as administrator (Windows) or check the app's sandbox permissions (macOS).
+  </Step>
+  <Step title="Verify Trueears is running">
+    Confirm Trueears is active by checking the system tray for its icon. If the process has crashed, global shortcuts will not work.
+  </Step>
+  <Step title="Restart the app">
+    Restarting Trueears re-registers all shortcuts with the OS, which resolves most transient hotkey issues.
+  </Step>
+</Steps>
